@@ -7,4 +7,10 @@ contextBridge.exposeInMainWorld('petAPI', {
   onCursorMove: (callback) => {
     ipcRenderer.on('cursor-pos', (_event, point) => callback(point));
   },
+  onActiveSite: (callback) => {
+    ipcRenderer.on('active-site', (_event, data) => callback(data));
+  },
+  log: (line) => {
+    ipcRenderer.send('pet-log', line);
+  },
 });

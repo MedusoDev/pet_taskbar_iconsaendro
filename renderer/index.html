@@ -47,11 +47,57 @@
         40%  { opacity: 0.9; transform: translateY(-9px); }
         100% { opacity: 0;   transform: translateY(-16px); }
       }
+
+      /* Ico_Eye: ícone flutuando acima do gem conforme o site detectado */
+      #site-icon {
+        position: absolute;
+        bottom: 74px;
+        left: 0; /* movido via JS para acompanhar o gem */
+        display: none;
+        pointer-events: none;
+        font-size: 20px;
+        transform: translateX(-50%);
+        animation: sitebob 2.2s ease-in-out infinite;
+        filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.35));
+      }
+      #site-icon.visible { display: block; }
+      @keyframes sitebob {
+        0%, 100% { transform: translateX(-50%) translateY(0); }
+        50%      { transform: translateX(-50%) translateY(-6px); }
+      }
+
+      /* AI_Live: balão de fala acima do gem */
+      #speech {
+        position: absolute;
+        bottom: 78px;
+        left: 0; /* movido via JS para acompanhar o gem */
+        transform: translateX(-50%) translateY(4px);
+        max-width: 200px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: rgba(20, 14, 32, 0.82);
+        border: 1px solid rgba(196, 181, 253, 0.35);
+        color: #ede9fe;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 12px;
+        line-height: 1.3;
+        text-align: center;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+      }
+      #speech.visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
     </style>
   </head>
   <body>
     <canvas id="pet-canvas"></canvas>
     <div id="zzz"><span>z</span><span>z</span><span>z</span></div>
+    <div id="site-icon"></div>
+    <div id="speech"></div>
     <script type="module" src="movement.js"></script>
   </body>
 </html>

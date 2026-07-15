@@ -14,7 +14,10 @@ const COLORS = [
 export const GEM_RADIUS = 1.5;
 
 // Meia-altura da vista em unidades de mundo (define o "zoom" da cena).
-const VIEW_HALF_HEIGHT = 3.84;
+// Escalado junto com WINDOW_HEIGHT em main.js (era 3.84 pra 160px de janela;
+// mantém a mesma proporção unidades-de-mundo/pixel pra o gem não mudar de
+// tamanho visual quando a janela fica mais alta).
+const VIEW_HALF_HEIGHT = 11.52;
 
 export function initScene(canvas) {
   const scene = new THREE.Scene();
@@ -103,6 +106,27 @@ export function initScene(canvas) {
     }
   }
 
+  // ── Cores dinâmicas ──
+  // setPalette: troca as 6 cores do degradê inteiro (Face Mood + emissive) —
+  // usado pela personalidade do dia. As faces derivam suavemente pras cores
+  // novas sozinhas, porque o lerp por face persegue a paleta atual.
+  // setTint (Ico_Eye): camada por cima, com prioridade quando ativa.
+  let siteTintColor = null;
+  let siteTintMix = 0;
+  const WHITE = new THREE.Color(1, 1, 1);
+  const tintMultiplier = new THREE.Color(1, 1, 1);
+  const emissiveTint = new THREE.Color();
+
+  function setTint(hexOrNull) {
+    siteTintColor = hexOrNull ? new THREE.Color(hexOrNull) : null;
+  }
+
+  function setPalette(hexes) {
+    for (let i = 0; i < COLORS.length; i++) {
+      COLORS[i].set(hexes[i % hexes.length]);
+    }
+  }
+
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.1,
@@ -183,11 +207,24 @@ export function initScene(canvas) {
     amberLight.intensity = 5 * lightPower;
     whiteLight.intensity = 0.5 * lightPower;
     ambient.intensity = 0.2 * (0.15 + 0.85 * power);
-    material.color.setScalar(0.12 + 0.88 * power);
 
-    // Emissive pulsa entre roxo e âmbar; dormindo, "respira" baixinho
+    // Tint do Ico_Eye por cima da paleta da personalidade (que já está nas
+    // próprias COLORS via setPalette)
+    siteTintMix = THREE.MathUtils.damp(siteTintMix, siteTintColor ? 1 : 0, 3, delta);
+    const scalarPower = 0.12 + 0.88 * power;
+    tintMultiplier.copy(WHITE);
+    if (siteTintColor) tintMultiplier.lerp(siteTintColor, siteTintMix * 0.7);
+    material.color.set(
+      tintMultiplier.r * scalarPower,
+      tintMultiplier.g * scalarPower,
+      tintMultiplier.b * scalarPower
+    );
+
+    // Emissive pulsa entre as duas cores-âncora da paleta atual
     const mood = (Math.sin(t * 0.18) + 1) / 2;
-    material.emissive.lerpColors(COLORS[0], COLORS[2], mood);
+    emissiveTint.lerpColors(COLORS[0], COLORS[2], mood);
+    if (siteTintColor && siteTintMix > 0.001) emissiveTint.lerp(siteTintColor, siteTintMix);
+    material.emissive.copy(emissiveTint);
     const baseEmissive = sleeping
       ? 0.12 + (Math.sin(t * 1.2) + 1) * 0.05
       : 0.55;
@@ -220,5 +257,5 @@ export function initScene(canvas) {
     colorAttr.needsUpdate = true;
   }
 
-  return { scene, camera, renderer, gem, mesh, material, applyUnfold, updateVisuals };
+  return { scene, camera, renderer, gem, mesh, material, applyUnfold, updateVisuals, setTint, setPalette };
 }

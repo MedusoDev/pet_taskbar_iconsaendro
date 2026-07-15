@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>pet_taskbar_icosaendro</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        /* Glow externo roxo + âmbar, complementa o emissive do material */
+        filter: drop-shadow(0 0 24px rgba(124, 58, 237, 0.35))
+                drop-shadow(0 0 52px rgba(217, 119, 6, 0.18));
+      }
+
+      /* "z z z" flutuando ao lado do gem enquanto dorme */
+      #zzz {
+        position: absolute;
+        bottom: 64px;
+        left: 0; /* movido via JS para acompanhar o gem */
+        display: none;
+        pointer-events: none;
+        font-family: 'Segoe UI', sans-serif;
+        font-weight: 600;
+        color: #c4b5fd;
+        text-shadow: 0 0 8px rgba(124, 58, 237, 0.6);
+      }
+      #zzz.visible { display: block; }
+      #zzz span {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        opacity: 0;
+        animation: zfloat 2.4s ease-in-out infinite;
+      }
+      #zzz span:nth-child(1) { font-size: 12px; animation-delay: 0s;    left: 0;   }
+      #zzz span:nth-child(2) { font-size: 17px; animation-delay: 0.55s; left: 10px; }
+      #zzz span:nth-child(3) { font-size: 22px; animation-delay: 1.1s;  left: 22px; }
+      @keyframes zfloat {
+        0%   { opacity: 0;   transform: translateY(-2px); }
+        40%  { opacity: 0.9; transform: translateY(-9px); }
+        100% { opacity: 0;   transform: translateY(-16px); }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="pet-canvas"></canvas>
+    <div id="zzz"><span>z</span><span>z</span><span>z</span></div>
+    <script type="module" src="movement.js"></script>
+  </body>
+</html>

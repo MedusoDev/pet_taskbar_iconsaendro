@@ -127,7 +127,10 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
     );
     // Decisão de mudar de poleiro (agenda irregular, estilo Poisson).
     // zen_aura é não interrompível: enquanto ativa, não começa viagem nova.
-    if (now >= state.nextRelocateAt && !state.stretch && !state.dizzy && !state.zenAuraActive) {
+    // Recebendo cafuné também não sai andando no meio do carinho.
+    if (state.pettingNow) {
+      state.nextRelocateAt = Math.max(state.nextRelocateAt, now + 3000);
+    } else if (now >= state.nextRelocateAt && !state.stretch && !state.dizzy && !state.zenAuraActive) {
       const tgt = pickWanderTarget(state, camera);
       startRelocate(state, now, tgt.x, tgt.y, 1, tgt.toCursor, logEvent);
     }

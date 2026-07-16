@@ -12,6 +12,7 @@ import { resetBoredom, createRegisterInput, createBoredomClock } from './behavio
 import { updateShutdown } from './behaviors/shutdown.js';
 import { setupInteractions } from './behaviors/interactions.js';
 import { updateAlive } from './behaviors/liveAnimation.js';
+import { createAffectionBar } from './behaviors/affectionBar.js';
 
 const canvas = document.getElementById('pet-canvas');
 const zzzEl = document.getElementById('zzz');
@@ -85,7 +86,8 @@ window.addEventListener('keydown', (event) => {
 
 // ─── Loop principal ──────────────────────────────────────────────────────────
 const clock = new THREE.Clock();
-const refs = { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl };
+const affectionBar = createAffectionBar();
+const refs = { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar };
 const deps = { logEvent, speak, personalityCtl };
 let rafPaused = false;
 let rafId = 0;

@@ -28,7 +28,7 @@ function gemScreenX(state, camera, gem) {
 }
 
 export function updateAlive(state, refs, deps, now, delta, t) {
-  const { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl } = refs;
+  const { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar } = refs;
   const { logEvent, speak, personalityCtl } = deps;
   const personality = state.personality;
   const isExcited = state.mode === 'excited';
@@ -126,7 +126,14 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     wantPitch = clamp(-dy * 0.35 * gazeGain, -0.3, 0.3);
 
     if (!state.dragging && !state.releaseFall) {
-      if (distPx < NEAR_PX * 1.2 && state.cursorVel > FLINCH_SPEED && now > state.flinchUntil) {
+      // Susto não interrompe cafuné em andamento: se ele já aceitou o
+      // carinho (pettingNow), esfregar rápido não o espanta.
+      if (
+        distPx < NEAR_PX * 1.2 &&
+        state.cursorVel > FLINCH_SPEED &&
+        now > state.flinchUntil &&
+        !state.pettingNow
+      ) {
         // Susto: cursor voando pra cima dele → esquiva rápida pro lado oposto
         state.flinchUntil = now + FLINCH_COOLDOWN;
         state.wakeJolt = Math.max(state.wakeJolt, 0.45);
@@ -308,6 +315,9 @@ export function updateAlive(state, refs, deps, now, delta, t) {
       window.innerHeight +
     6;
   zzzEl.style.bottom = `${uiBottomPx}px`;
+
+  // ── Barrinha de carinho: mostra o medidor de cafuné acima do gem ──
+  if (affectionBar) affectionBar.update(state, gemScreenX(state, camera, gem), uiBottomPx);
   siteIconEl.style.bottom = `${uiBottomPx + 10}px`;
   speechEl.style.bottom = `${uiBottomPx + 14}px`;
 }

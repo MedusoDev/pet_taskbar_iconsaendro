@@ -28,6 +28,13 @@ const ZEN_EXCITED_PET_MS = 6000;
 const ZEN_TRANSITION_DURATION_MS = 3200;
 const ZEN_TRANSITION_TINT = '#DC2626'; // vermelho
 
+// ── Normality → Excited: supercarga de carinho ──
+// Com a barra de carinho cheia (>= 1.0) e o cafuné continuando, uma aura
+// vai crescendo no coração (state.petCharge, 0→1). Cheia → modo Excited.
+const PET_CHARGE_FULL_AFFECTION = 1.0; // barra "100%"
+const PET_CHARGE_FILL_SEC = 4;         // s de cafuné contínuo pra encher a aura
+const PET_CHARGE_DRAIN_SEC = 2;        // s pra aura esvaziar quando para
+
 // ── Excited: need_you → please_pet ──
 const NEED_YOU_MIN_MS = 8000;
 const NEED_YOU_MAX_MS = 13000;
@@ -47,6 +54,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
   state.excitedState = null;
   state.zenAuraActive = false;
   state.zenBreathingActive = false;
+  state.petCharge = 0;
 
   // ── Normality ⇄ Zen ──
 
@@ -118,6 +126,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
 
   function enterExcited(now) {
     state.mode = 'excited';
+    state.petCharge = 0;
     state.personality = excited;
     state.zen = null;
     state.zenAuraActive = false;
@@ -154,7 +163,22 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
   function update(now, delta) {
     if (state.mode === 'zen') return updateZen(now);
     if (state.mode === 'excited') return updateExcited(now, delta);
+    updateNormalityCharge(now, delta);
     return null;
+  }
+
+  // Normality → Excited: barra cheia + cafuné continuando → aura no coração
+  // cresce; cheia → Excited. Parou o carinho, a aura escorre de volta.
+  function updateNormalityCharge(now, delta) {
+    if (state.pettingNow && state.affection >= PET_CHARGE_FULL_AFFECTION) {
+      state.petCharge = Math.min(state.petCharge + delta / PET_CHARGE_FILL_SEC, 1);
+      if (state.petCharge >= 1) {
+        logEvent('supercarga', 'carinho transbordou — Normality → Excited');
+        enterExcited(now);
+      }
+    } else {
+      state.petCharge = Math.max(0, state.petCharge - delta / PET_CHARGE_DRAIN_SEC);
+    }
   }
 
   function updateZen(now) {

@@ -10,6 +10,15 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
 
+  // Cafuné exige esfregada de verdade: o cursor precisa fazer vai-e-vem em
+  // cima dele (inversões de direção) — só passar por cima não conta.
+  const PET_FLIP_WINDOW = 1000; // ms para acumular inversões
+  const PET_FLIPS_NEEDED = 2;   // inversões dentro da janela para engatar
+  const PET_JITTER_PX = 2;      // movimento abaixo disso não define direção
+  let petDirX = 0;
+  let petDirY = 0;
+  let petFlips = [];
+
   function isPointerOverPet(event) {
     pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -66,18 +75,32 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
 
     const overPet = isPointerOverPet(event);
 
-    // Carinho: mover o mouse EM CIMA dele (sem clicar) é cafuné — quanto
-    // mais movimento, mais o medidor enche.
+    // Carinho: esfregar o mouse EM CIMA dele (vai-e-vem). Depois de
+    // engatado, qualquer movimento sobre ele mantém o cafuné; parar por
+    // 400ms encerra (ver liveAnimation.js).
     if (overPet && !state.shutdown && !state.zenAuraActive) {
-      const strokes = Math.abs(event.movementX) + Math.abs(event.movementY);
-      state.affection = Math.min(state.affection + strokes * 0.0012, 1.2);
-      state.lastPetAt = performance.now();
-      if (!state.pettingNow) {
-        state.pettingNow = true;
-        if (performance.now() - state.lastPetLogAt > 5000) {
-          state.lastPetLogAt = performance.now();
-          logEvent('carinho', 'recebendo cafuné');
-          speak('petting');
+      const now = performance.now();
+      const dx = event.movementX;
+      const dy = event.movementY;
+      const dirX = Math.abs(dx) > PET_JITTER_PX ? Math.sign(dx) : 0;
+      const dirY = Math.abs(dy) > PET_JITTER_PX ? Math.sign(dy) : 0;
+      if (dirX && petDirX && dirX !== petDirX) petFlips.push(now);
+      if (dirY && petDirY && dirY !== petDirY) petFlips.push(now);
+      if (dirX) petDirX = dirX;
+      if (dirY) petDirY = dirY;
+      petFlips = petFlips.filter((f) => now - f < PET_FLIP_WINDOW);
+
+      if (petFlips.length >= PET_FLIPS_NEEDED || state.pettingNow) {
+        const strokes = Math.abs(dx) + Math.abs(dy);
+        state.affection = Math.min(state.affection + strokes * 0.0004, 1.2);
+        state.lastPetAt = now;
+        if (!state.pettingNow) {
+          state.pettingNow = true;
+          if (now - state.lastPetLogAt > 5000) {
+            state.lastPetLogAt = now;
+            logEvent('carinho', 'recebendo cafuné');
+            speak('petting');
+          }
         }
       }
     }

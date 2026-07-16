@@ -120,6 +120,15 @@ function createWindow() {
 ipcMain.on('set-ignore-mouse-events', (event, ignore) => {
   if (!win) return;
   win.setIgnoreMouseEvents(ignore, { forward: true });
+
+  // A janela é `focusable: false` de propósito (não deve roubar foco do
+  // resto do sistema flutuando por aí). Mas com isso ela nunca recebe
+  // teclado — então liberamos foco só no instante em que o mouse está de
+  // fato em cima do gem (mesmo gatilho do click-through), pra atalhos como
+  // o Z (gatilho manual do modo Zen) funcionarem sem grudar foco o tempo
+  // todo.
+  win.setFocusable(!ignore);
+  if (!ignore) win.focus();
 });
 
 // Diário do pet: o renderer manda cada reação/estado pra cá, e a gente

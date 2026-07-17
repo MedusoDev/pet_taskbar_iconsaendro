@@ -5,6 +5,7 @@
 // quase na hora, cai e fica dormindo com z z z por ~1min antes de religar.
 import { damp, clamp } from './mathUtils.js';
 import { resetBoredom } from './boredom.js';
+import { groundAtX } from './wander.js';
 import { GEM_RADIUS } from '../scene.js';
 
 const SHUTDOWN_DUR = 12.5;
@@ -50,12 +51,13 @@ export function updateShutdown(state, refs, now, delta, logEvent) {
   applyUnfold(state.unfold);
 
   // Queda com gravidade + quiques (só enquanto desligada)
+  const ground = groundAtX(state, gem.position.x);
   if (off) {
     shutdown.falling = true;
     shutdown.vy -= 7.5 * delta;
     gem.position.y += shutdown.vy * delta;
-    if (gem.position.y <= state.groundY) {
-      gem.position.y = state.groundY;
+    if (gem.position.y <= ground) {
+      gem.position.y = ground;
       if (Math.abs(shutdown.vy) > 0.6 && shutdown.bounces < 2) {
         shutdown.vy = -shutdown.vy * 0.42;
         shutdown.bounces++;
@@ -65,7 +67,7 @@ export function updateShutdown(state, refs, now, delta, logEvent) {
     }
   } else if (evT >= onAt) {
     // Religada: flutua de volta ao lugar
-    gem.position.y = damp(gem.position.y, state.groundY + 0.13, 2.2, delta);
+    gem.position.y = damp(gem.position.y, ground + 0.13, 2.2, delta);
   }
 
   mesh.rotation.y = state.spin + state.lookYaw;

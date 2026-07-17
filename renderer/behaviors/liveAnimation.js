@@ -12,6 +12,7 @@ import {
   updateSleepPosition,
   syncFromDrag,
   updateReleaseFall,
+  groundAtX,
 } from './wander.js';
 
 // Espaço pessoal do cursor
@@ -187,7 +188,11 @@ export function updateAlive(state, refs, deps, now, delta, t) {
           state.orbitAngle += delta * 2.2;
           const cursorWorldY =
             camera.top - (cy / window.innerHeight) * (camera.top - camera.bottom);
-          const cwy = clamp(cursorWorldY, state.groundY + GEM_RADIUS, camera.top - GEM_RADIUS);
+          const cwy = clamp(
+            cursorWorldY,
+            groundAtX(state, cursorWorldX) + GEM_RADIUS,
+            camera.top - GEM_RADIUS
+          );
           state.anchor.x = damp(
             state.anchor.x,
             clamp(cursorWorldX + Math.cos(state.orbitAngle) * 3.2, -limit, limit),

@@ -27,8 +27,27 @@ const noiseY = createNoise2D(2);
 /** Área visível / chão, a partir da câmera ortográfica. */
 export function computeView(camera) {
   const halfWidth = camera.right;
+  const viewTop = camera.top;
   const groundY = -camera.top + GEM_RADIUS + 0.05;
-  return { halfWidth, groundY };
+  return { halfWidth, viewTop, groundY };
+}
+
+/** Chão POR MONITOR: em setups multi-tela, cada monitor tem seu rodapé/taskbar
+ * em um Y diferente (main.js manda a geometria via screen-config). Dado um X
+ * de mundo, devolve o groundY do monitor sob aquele ponto — assim o pet sobe
+ * pra "flutuar" na borda de um monitor mais baixo em vez de sumir embaixo
+ * dele. Sem config (ou X fora de qualquer tela), cai no chão global. */
+export function groundAtX(state, x) {
+  const cfg = state.screenConfig;
+  if (!cfg || !state.viewTop) return state.groundY;
+  const screenPx = window.screenX + ((x / state.halfWidth + 1) / 2) * window.innerWidth;
+  const worldPerPx = (2 * state.viewTop) / window.innerHeight;
+  for (const d of cfg.displays) {
+    if (screenPx >= d.x && screenPx < d.x + d.width) {
+      return state.viewTop - (d.floorY - window.screenY) * worldPerPx + GEM_RADIUS + 0.05;
+    }
+  }
+  return state.groundY;
 }
 
 /** Agenda a próxima decisão de "ir pra outro lugar" com intervalo exponencial
@@ -46,7 +65,8 @@ export function startRelocate(state, now, targetX, targetY, speedMul, toCursor, 
   const mv = state.personality.movement;
   const limit = state.halfWidth - GEM_RADIUS - EDGE_MARGIN;
   const x1 = clamp(targetX, -limit, limit);
-  const y1 = clamp(targetY, state.groundY, state.groundY + WANDER_Y_RANGE * mv.yRange);
+  const g1 = groundAtX(state, x1);
+  const y1 = clamp(targetY, g1, g1 + WANDER_Y_RANGE * mv.yRange);
   const dist = Math.hypot(x1 - state.restX, y1 - state.restY);
   const dur = clamp(
     (dist / (RELOC_SPEED * mv.speed * speedMul)) * 1000,
@@ -81,16 +101,18 @@ export function pickWanderTarget(state, camera) {
   // Empolgado só quer saber de uma coisa: onde o mouse está
   const visitChance = state.mode === 'excited' ? 1 : 0.22 + 0.4 * mv.approach;
   if (cwx !== null && Math.random() < visitChance) {
+    const x = cwx + (Math.random() * 2 - 1) * 1.8; // perto, mas não em cima
     return {
-      x: cwx + (Math.random() * 2 - 1) * 1.8, // perto, mas não em cima
-      y: state.groundY + Math.random() * WANDER_Y_RANGE * mv.yRange * 0.7,
+      x,
+      y: groundAtX(state, x) + Math.random() * WANDER_Y_RANGE * mv.yRange * 0.7,
       toCursor: true,
     };
   }
 
+  const x = (Math.random() * 2 - 1) * limit;
   return {
-    x: (Math.random() * 2 - 1) * limit,
-    y: state.groundY + Math.random() * WANDER_Y_RANGE * mv.yRange,
+    x,
+    y: groundAtX(state, x) + Math.random() * WANDER_Y_RANGE * mv.yRange,
     toCursor: false,
   };
 }
@@ -119,9 +141,10 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
     const mx = noiseX(t * 0.32, 0) * MICRO_X * mv.micro;
     const my = noiseY(t * 0.27, 50) * MICRO_Y * mv.micro;
     state.restX = damp(state.restX, state.anchor.x + mx, HOVER_LAMBDA, delta);
+    const g = groundAtX(state, state.restX);
     state.restY = damp(
       state.restY,
-      clamp(state.anchor.y + my, state.groundY, state.groundY + WANDER_Y_RANGE + 0.5),
+      clamp(state.anchor.y + my, g, g + WANDER_Y_RANGE + 0.5),
       HOVER_LAMBDA,
       delta
     );
@@ -147,9 +170,10 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
 
 /** Dormindo: pousa devagar no chão. */
 export function updateSleepPosition(state, delta) {
-  state.anchor.y = state.groundY;
+  const g = groundAtX(state, state.anchor.x);
+  state.anchor.y = g;
   state.restX = damp(state.restX, state.anchor.x, 1.1, delta);
-  state.restY = damp(state.restY, state.groundY, 1.1, delta);
+  state.restY = damp(state.restY, g, 1.1, delta);
 }
 
 /** Enquanto arrastado, a posição é escrita direto pelo mousemove (ver
@@ -165,19 +189,20 @@ export function syncFromDrag(state, gem) {
 /** Queda com gravidade + 1 quique ao soltar do drag, depois volta a flutuar. */
 export function updateReleaseFall(state, gem, delta, now, logEvent) {
   const rf = state.releaseFall;
+  const g = groundAtX(state, gem.position.x);
   rf.vy -= RELEASE_GRAVITY * delta;
   gem.position.y += rf.vy * delta;
-  if (gem.position.y <= state.groundY) {
-    gem.position.y = state.groundY;
+  if (gem.position.y <= g) {
+    gem.position.y = g;
     if (Math.abs(rf.vy) > 0.6 && rf.bounces < 1) {
       rf.vy = -rf.vy * RELEASE_BOUNCE_RESTITUTION;
       rf.bounces++;
     } else {
       state.releaseFall = null;
       state.restX = gem.position.x;
-      state.restY = state.groundY;
+      state.restY = g;
       state.anchor.x = state.restX;
-      state.anchor.y = state.groundY + 0.6;
+      state.anchor.y = g + 0.6;
       state.landAt = now;
       scheduleNextRelocate(state, now);
       logEvent('pousou', `em x=${state.restX.toFixed(1)}`);

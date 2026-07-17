@@ -13,31 +13,44 @@ const TARGET_BROWSER_NAME = 'brave';
 
 let win = null;
 
-function getWindowBounds() {
-  const primary = screen.getPrimaryDisplay();
-  const { bounds, workArea } = primary;
+// "Chão" de um monitor, em pixels de tela: topo da taskbar quando ela está
+// visível na borda de baixo; senão (oculta/auto-hide ou em outra borda), o
+// próprio rodapé da tela — ali o pet fica flutuando rente à borda.
+function displayFloorY(display) {
+  const { bounds, workArea } = display;
+  const taskbarHeight = bounds.height - workArea.height;
+  const taskbarAtBottom = workArea.y === bounds.y && taskbarHeight > 0;
+  return taskbarAtBottom ? workArea.y + workArea.height : bounds.y + bounds.height;
+}
 
+function getWindowBounds() {
   // A janela cobre TODOS os monitores na horizontal (largura do desktop
   // virtual), pro pet poder passear até a segunda tela.
   const displays = screen.getAllDisplays();
   const minX = Math.min(...displays.map((d) => d.bounds.x));
   const maxX = Math.max(...displays.map((d) => d.bounds.x + d.bounds.width));
 
-  // workArea exclui a taskbar; a diferença entre bounds e workArea nos diz
-  // onde a taskbar está e qual sua espessura, sem precisar hardcodar nada.
-  const taskbarHeight = bounds.height - workArea.height;
-  const taskbarAtBottom = workArea.y === bounds.y && taskbarHeight > 0;
+  // Cada monitor tem seu próprio chão (monitores de altura diferente ou com
+  // taskbar oculta têm rodapés em Y diferentes). A janela precisa cobrir da
+  // pista mais ALTA (chão mais alto − WINDOW_HEIGHT) até o chão mais BAIXO —
+  // senão o pet "some" ao viajar pra um monitor cujo chão fica fora da faixa.
+  const floors = displays.map(displayFloorY);
+  const y = Math.min(...floors) - WINDOW_HEIGHT;
+  const height = Math.max(...floors) - y;
 
-  // Altura vertical ancorada na taskbar do monitor primário (em setups com
-  // monitores alinhados/mesma resolução, vale para os dois).
-  // Taskbar oculta (auto-hide → workArea == bounds) ou em outra borda:
-  // ancora no RODAPÉ da tela mesmo assim — antes caía em bounds.y (topo) e
-  // o pet ficava flutuando no alto da tela.
-  const y = taskbarAtBottom
-    ? workArea.y + workArea.height - WINDOW_HEIGHT
-    : bounds.y + bounds.height - WINDOW_HEIGHT;
+  return { x: minX, y, width: maxX - minX, height };
+}
 
-  return { x: minX, y, width: maxX - minX, height: WINDOW_HEIGHT };
+// Geometria que o renderer precisa pra saber onde é o chão em cada trecho
+// horizontal da janela (chão por monitor).
+function getScreenConfig() {
+  return {
+    displays: screen.getAllDisplays().map((d) => ({
+      x: d.bounds.x,
+      width: d.bounds.width,
+      floorY: displayFloorY(d),
+    })),
+  };
 }
 
 function createWindow() {
@@ -66,6 +79,9 @@ function createWindow() {
   // de criada aplica a largura do desktop virtual inteiro (todas as telas).
   win.setBounds(bounds);
   win.once('ready-to-show', () => win.setBounds(getWindowBounds()));
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.send('screen-config', getScreenConfig());
+  });
 
   console.log(
     `[pet] janela: pedido ${bounds.width}x${bounds.height} @ (${bounds.x},${bounds.y})` +
@@ -146,7 +162,9 @@ app.whenReady().then(() => {
 
   // Monitor plugado/removido/reconfigurado → reposiciona a "pista"
   const reposition = () => {
-    if (win) win.setBounds(getWindowBounds());
+    if (!win) return;
+    win.setBounds(getWindowBounds());
+    win.webContents.send('screen-config', getScreenConfig());
   };
   screen.on('display-added', reposition);
   screen.on('display-removed', reposition);

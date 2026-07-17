@@ -94,7 +94,9 @@ export function createState(now, groundY) {
 
     // câmera / chão (atualizados em resize)
     halfWidth: 0,
+    viewTop: 0,
     groundY,
+    screenConfig: null, // { displays: [{ x, width, floorY }] } — chão por monitor (main.js)
 
     // AI_Live: máquina de personalidade (ver behaviors/personalityState.js)
     personality: null,

@@ -30,20 +30,29 @@ function logEvent(tag, detail = '') {
 }
 
 // ─── Área visível / chão ─────────────────────────────────────────────────────
-let { halfWidth, groundY } = computeView(camera);
+let { halfWidth, viewTop, groundY } = computeView(camera);
 
 // ─── Estado central + sistemas ligados a ele ─────────────────────────────────
 const state = createState(performance.now(), groundY);
 state.halfWidth = halfWidth;
+state.viewTop = viewTop;
 state.restY = groundY;
 state.prevY = groundY;
 state.anchor = { x: 0, y: groundY + 1.0 };
 
 window.addEventListener('resize', () => {
-  ({ halfWidth, groundY } = computeView(camera));
+  ({ halfWidth, viewTop, groundY } = computeView(camera));
   state.halfWidth = halfWidth;
+  state.viewTop = viewTop;
   state.groundY = groundY;
 });
+
+// Geometria dos monitores (chão por tela) — ver groundAtX em wander.js
+if (window.petAPI && window.petAPI.onScreenConfig) {
+  window.petAPI.onScreenConfig((config) => {
+    state.screenConfig = config;
+  });
+}
 
 // ─── AI_Live: máquina de personalidade (Normality ⇄ Zen ⇄ ...) ─────────────
 const speak = createSpeech({ speechEl, logEvent, getPersonality: () => state.personality });

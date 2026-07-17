@@ -13,11 +13,12 @@ const COLORS = [
 // Mesma escala do portfólio: gem de raio 1.5.
 export const GEM_RADIUS = 1.5;
 
-// Meia-altura da vista em unidades de mundo (define o "zoom" da cena).
-// Escalado junto com WINDOW_HEIGHT em main.js (era 3.84 pra 160px de janela;
-// mantém a mesma proporção unidades-de-mundo/pixel pra o gem não mudar de
-// tamanho visual quando a janela fica mais alta).
-const VIEW_HALF_HEIGHT = 11.52;
+// Proporção unidades-de-mundo/pixel fixa (3.84 de meia-altura pra 160px →
+// 0.024/px). A altura da janela agora varia com o setup de monitores (main.js
+// estica a faixa pra cobrir o chão de cada tela), então a meia-altura da
+// vista é derivada da altura real — o gem mantém o mesmo tamanho em pixels.
+export const WORLD_HALF_PER_PX = 0.024;
+const viewHalfHeight = () => window.innerHeight * WORLD_HALF_PER_PX;
 
 export function initScene(canvas) {
   const scene = new THREE.Scene();
@@ -26,12 +27,13 @@ export function initScene(canvas) {
   // perspectiva estica o gem ("distorção ovo") quando ele anda para longe do
   // centro. Com projeção ortográfica ele fica idêntico em qualquer ponto da
   // taskbar — e a rotação continua sendo 3D de verdade.
+  const vh = viewHalfHeight();
   const aspect = window.innerWidth / window.innerHeight;
   const camera = new THREE.OrthographicCamera(
-    -VIEW_HALF_HEIGHT * aspect,
-    VIEW_HALF_HEIGHT * aspect,
-    VIEW_HALF_HEIGHT,
-    -VIEW_HALF_HEIGHT,
+    -vh * aspect,
+    vh * aspect,
+    vh,
+    -vh,
     0.1,
     100
   );
@@ -151,9 +153,12 @@ export function initScene(canvas) {
   scene.add(gem);
 
   window.addEventListener('resize', () => {
+    const newVh = viewHalfHeight();
     const newAspect = window.innerWidth / window.innerHeight;
-    camera.left = -VIEW_HALF_HEIGHT * newAspect;
-    camera.right = VIEW_HALF_HEIGHT * newAspect;
+    camera.left = -newVh * newAspect;
+    camera.right = newVh * newAspect;
+    camera.top = newVh;
+    camera.bottom = -newVh;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });

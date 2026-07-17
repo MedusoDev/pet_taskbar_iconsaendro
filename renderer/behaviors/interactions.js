@@ -3,7 +3,7 @@
 // captura eventos quando o cursor está de fato em cima do gem).
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { GEM_RADIUS } from '../scene.js';
-import { EDGE_MARGIN, scheduleNextRelocate } from './wander.js';
+import { EDGE_MARGIN, scheduleNextRelocate, groundAtX } from './wander.js';
 import { clamp } from './mathUtils.js';
 
 // Segurado no colo por este tempo → ele pergunta se quer ficar parado ali
@@ -72,7 +72,11 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
       const wp = pointerToWorld(event);
       const limit = state.halfWidth - GEM_RADIUS - EDGE_MARGIN;
       gem.position.x = clamp(wp.x + state.dragOffsetX, -limit, limit);
-      gem.position.y = clamp(wp.y + state.dragOffsetY, state.groundY, camera.top - GEM_RADIUS - 0.1);
+      gem.position.y = clamp(
+        wp.y + state.dragOffsetY,
+        groundAtX(state, gem.position.x),
+        camera.top - GEM_RADIUS - 0.1
+      );
 
       // Segurado por 3s → ele pergunta se quer ficar parado aqui
       if (

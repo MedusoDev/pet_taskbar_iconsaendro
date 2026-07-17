@@ -1,7 +1,7 @@
 // Relógio de tédio (segundos sem input do usuário): decide quando entra
 // tique de impaciência, espreguiçada, shutdown ou sono. E o inverso: quando
 // qualquer input chega, zera o relógio e acorda o pet se preciso.
-import { scheduleNextRelocate } from './wander.js';
+import { scheduleNextRelocate, groundAtX } from './wander.js';
 
 const REST_AT = 14;      // tiques de impaciência
 const STRETCH_AT = 32;   // espreguiçada (uma vez por ciclo)
@@ -31,7 +31,7 @@ export function createRegisterInput({ logEvent, speak }) {
       state.wakeJolt = 1.0;
       state.pokeVel += 5;
       state.anchor.x = state.restX;
-      state.anchor.y = Math.max(state.restY, state.groundY + 0.5);
+      state.anchor.y = Math.max(state.restY, groundAtX(state, state.restX) + 0.5);
       scheduleNextRelocate(state, now);
       logEvent('acordou', 'com susto');
       speak('wake');

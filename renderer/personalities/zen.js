@@ -63,6 +63,8 @@ export const zen = {
     site_email: ['Uma coisa de cada vez, sem pressa.', 'Respira antes de responder.'],
     site_x: ['Muito barulho ali... respira comigo.', 'A timeline corre, a gente flutua.'],
     petting: ['Que paz... continua.', 'Hmm, carinho bom esse.'],
+    // susto enquanto estacionado: até o zen se abala — mas volta sereno
+    flinch_parked: ['Uh! ...respira. Voltando pro meu canto.', 'Me tirou da paz... só um instante. Já volto.', 'Susto passageiro. O lugar me espera.'],
     excited: ['Ok... você conseguiu me tirar do zen.', 'Uau... tá me deixando bobo.'],
     calmdown: ['Voltei pro meu zen.', 'Respirando de novo...'],
     zen_enter: ['Ah... hora de desacelerar.', 'Vou entrar na paz agora.'],

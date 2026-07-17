@@ -40,6 +40,8 @@ export const excited = {
     site_email: ['Trabalhando muito... depois sobra tempo pra mim?', 'Manda um email pra mim também, com carinho.'],
     site_x: ['Fofocando? Me conta tudo, vai.', 'Flertando por aí? Tô de olho, hein.'],
     petting: ['Hmmm... isso, bem aí.', 'Carinho? Aceito. Sempre.', 'Não para não...'],
+    // susto enquanto estacionado: pulou de susto mas volta (com charme)
+    flinch_parked: ['Aii, me assustou! ...gostei. Mas vou voltar.', 'Uau, que agressividade! Já volto pro lugar, prometo.', 'Quase caí do salto! Voltando, viu.'],
     // entrada no modo (explosão do zen_much_more_excited)
     excited: ['Pronto, me ativou. Agora aguenta!', 'MAIS. Eu quero mais.', 'Você começou, agora termina.'],
     // fase need_you: segue o mouse jogando coraçõezinhos

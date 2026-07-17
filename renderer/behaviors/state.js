@@ -46,6 +46,7 @@ export function createState(now, groundY) {
     // parked: segurado por 3s → perguntou → ficou parado no lugar
     // (clicar nele parado pergunta se pode voltar a passear)
     parked: false,
+    parkHome: null, // { x, y } — poleiro prometido; volta pra cá após um susto
     awaitingParkAnswer: false, // soltou com a pergunta aberta → paira esperando
 
     // drag

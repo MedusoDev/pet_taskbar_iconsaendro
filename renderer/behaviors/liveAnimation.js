@@ -177,6 +177,24 @@ export function updateAlive(state, refs, deps, now, delta, t) {
           false,
           logEvent
         );
+        // Estacionado: pulou de susto, mas prometeu ficar — reclama e o
+        // bloco de volta-pro-poleiro (abaixo) o traz de volta ao pousar.
+        if (state.parked && state.parkHome) speak('flinch_parked', true);
+      } else if (
+        state.parked &&
+        state.parkHome &&
+        !state.reloc &&
+        Math.hypot(state.restX - state.parkHome.x, state.restY - state.parkHome.y) > 0.5
+      ) {
+        // Fora do poleiro prometido (susto/queda) → volta pro lugar exato
+        logEvent('parked', 'voltando pro poleiro prometido');
+        startRelocate(state, now, state.parkHome.x, state.parkHome.y, 1, false, logEvent);
+        // startRelocate limita o Y à faixa de passeio; o poleiro pode estar
+        // mais alto (drag alcança o topo) — restaura o destino exato.
+        if (state.reloc) {
+          state.reloc.x1 = state.parkHome.x;
+          state.reloc.y1 = state.parkHome.y;
+        }
       } else if (excitedChasing && !state.reloc && !state.parked) {
         const cursorWorldX = ((cx / window.innerWidth) * 2 - 1) * camera.right;
         const limit = state.halfWidth - GEM_RADIUS - EDGE_MARGIN;

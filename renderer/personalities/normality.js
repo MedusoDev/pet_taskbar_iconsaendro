@@ -25,6 +25,8 @@ export const normality = {
     site_email: ['Trabalhando, hein.', 'Caixa de entrada de novo.'],
     site_x: ['Rolando o feed.', 'Muita coisa passando aí.'],
     petting: ['Isso é bom.', 'Continua.'],
+    // susto enquanto estacionado: pulou, reclama e volta pro lugar prometido
+    flinch_parked: ['Ai! Que susto... já volto pro lugar.', 'Uou! Calma... tô voltando.', 'Eita! Prometi ficar ali, né... voltando.'],
     excited: ['Opa, animou.', 'Uou, tá bom demais.'],
     calmdown: ['Voltei ao normal.', 'De boa de novo.'],
   },

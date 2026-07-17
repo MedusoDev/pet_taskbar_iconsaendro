@@ -6,14 +6,10 @@ import { GEM_RADIUS } from '../scene.js';
 import { EDGE_MARGIN, scheduleNextRelocate, groundAtX } from './wander.js';
 import { clamp } from './mathUtils.js';
 
-// Segurado no colo por este tempo → ele pergunta se quer ficar parado ali
-const PARK_HOLD_MS = 3000;
-
 export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput, prompt }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
 
-  let dragStartAt = 0;
   let parkAskedThisDrag = false;
 
   // Cafuné exige esfregada de verdade: o cursor precisa fazer vai-e-vem em
@@ -44,6 +40,28 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
   }
 
   window.addEventListener('mousedown', (event) => {
+    // Estacionar: segurando ele no colo (drag com o esquerdo), um clique do
+    // botão DIREITO dispara a pergunta "quer ficar parado aqui?".
+    if (event.button === 2) {
+      if (
+        state.dragging &&
+        prompt &&
+        !state.parked &&
+        !parkAskedThisDrag
+      ) {
+        parkAskedThisDrag = true;
+        state.awaitingParkAnswer = true;
+        logEvent('pergunta', 'segurado + botão direito — quer que eu fique parado aqui?');
+        prompt.show('Quer que eu fique paradinho aqui?', 'Fica aqui', () => {
+          state.parked = true;
+          state.awaitingParkAnswer = false;
+          state.parkHome = { x: gem.position.x, y: gem.position.y };
+          logEvent('parked', `estacionado em x=${gem.position.x.toFixed(1)} — não sai do lugar`);
+        });
+      }
+      return;
+    }
+    if (event.button !== 0) return;
     if (!isPointerOverPet(event) || state.shutdown || state.zenAuraActive) return;
 
     registerInput(state, performance.now());
@@ -51,7 +69,6 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
     state.releaseFall = null;
     state.signatureAnim = null;
     state.dragDistance = 0;
-    dragStartAt = performance.now();
     parkAskedThisDrag = false;
     state.lastPointerScreen = { x: event.clientX, y: event.clientY };
     logEvent('colo', 'pegou ele no colo');
@@ -77,23 +94,6 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
         groundAtX(state, gem.position.x),
         camera.top - GEM_RADIUS - 0.1
       );
-
-      // Segurado por 3s → ele pergunta se quer ficar parado aqui
-      if (
-        prompt &&
-        !state.parked &&
-        !parkAskedThisDrag &&
-        performance.now() - dragStartAt >= PARK_HOLD_MS
-      ) {
-        parkAskedThisDrag = true;
-        state.awaitingParkAnswer = true;
-        logEvent('pergunta', 'segurado por 3s — quer que eu fique parado aqui?');
-        prompt.show('Quer que eu fique paradinho aqui?', 'Fica aqui', () => {
-          state.parked = true;
-          state.awaitingParkAnswer = false;
-          logEvent('parked', `estacionado em x=${gem.position.x.toFixed(1)} — não sai do lugar`);
-        });
-      }
 
       if (state.ignoringMouseEvents && window.petAPI) {
         window.petAPI.setIgnoreMouseEvents(false);
@@ -144,7 +144,14 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
     }
   });
 
-  window.addEventListener('mouseup', () => {
+  // Botão direito não encerra o colo (ele é o gatilho do estacionar) e não
+  // abre menu de contexto em cima do pet.
+  window.addEventListener('contextmenu', (event) => {
+    if (state.dragging || isPointerOverPet(event)) event.preventDefault();
+  });
+
+  window.addEventListener('mouseup', (event) => {
+    if (event.button !== 0) return;
     if (!state.dragging) return;
     state.dragging = false;
     // Soltou com a pergunta de estacionar aberta → não cai: fica pairando
@@ -184,6 +191,7 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
         desperate ? 'Vai!' : 'Pode ir!',
         () => {
           state.parked = false;
+          state.parkHome = null;
           scheduleNextRelocate(state, performance.now());
           logEvent('parked', 'liberado — voltando a passear');
         }

@@ -33,9 +33,13 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   const { logEvent, speak, personalityCtl } = deps;
   const personality = state.personality;
   const isExcited = state.mode === 'excited';
-  // Nas fases shy/shy2 (saída envergonhada) ele para de perseguir o mouse
+  // Só as fases de perseguição contam como "chasing": nas fases com pose
+  // própria (trapped ofegante, shy/shy2 murchando) os pulinhos e a vibração
+  // de excitação brigariam com a pose — dois sistemas escrevendo o Y.
   const excitedChasing =
-    isExcited && state.excitedState && !state.excitedState.phase.startsWith('shy');
+    isExcited &&
+    state.excitedState &&
+    ['needYou', 'pleasePet', 'rush'].includes(state.excitedState.phase);
 
   // ── Máquina de personalidade: zen_breathing / zen_aura /
   // zen_much_more_excited têm pose própria, com prioridade sobre a
@@ -152,6 +156,23 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     wantPitch = clamp(-dy * 0.35 * gazeGain, -0.3, 0.3);
 
     if (!state.dragging && !state.releaseFall) {
+      // Estacionado: cursor chegando calmo por perto → cumprimenta do
+      // poleiro com uma giradinha. Só no Normality: no Zen a respiração é
+      // imóvel, e no Excited preso ele já está implorando pra sair.
+      if (
+        state.parked &&
+        state.mode === 'normality' &&
+        near &&
+        state.cursorVel < 250 &&
+        !state.pettingNow &&
+        now >= state.nextPerchGreetAt
+      ) {
+        state.nextPerchGreetAt = now + 40000 + Math.random() * 40000;
+        state.pokeVel += 2.2;
+        state.wakeJolt = Math.max(state.wakeJolt, 0.25);
+        logEvent('parked', 'cursor passou por perto — acenou do poleiro');
+        speak('perch_greet');
+      }
       // Susto não interrompe cafuné em andamento: se ele já aceitou o
       // carinho (pettingNow), esfregar rápido não o espanta.
       // Só no Normality: no Excited a fuga brigaria com a perseguição do
@@ -303,6 +324,20 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   const bobAmp = state.sleeping ? 0.03 : 0.04 + 0.05 * n01(noiseMod(t * 0.05, 30));
   const bob = (Math.sin(state.bobPhase) + 1) * bobAmp;
 
+  // Amortecedor de corte seco no Y da pose: qualquer descontinuidade brusca
+  // (assinatura cancelada por transição de modo, troca de fase do Excited
+  // no meio de um pulinho, etc.) vira um resíduo que decai em ~250ms em vez
+  // de um pop de posição. Conteúdo legítimo (respiração, pulos, tremidas)
+  // muda pouco por frame e passa reto pelo limiar.
+  const poseY = state.sleeping ? bob + tickY : bob + tickY + sigY + hopY + vibeY;
+  const poseJump = poseY - state.prevPoseY;
+  state.prevPoseY = poseY;
+  if (Math.abs(poseJump) > 0.12) {
+    state.poseResidueY = clamp(state.poseResidueY - poseJump, -1.5, 1.5);
+  }
+  state.poseResidueY *= Math.exp(-9 * delta);
+  if (Math.abs(state.poseResidueY) < 0.001) state.poseResidueY = 0;
+
   if (state.dragging) {
     syncFromDrag(state, gem);
   } else if (state.releaseFall) {
@@ -310,11 +345,11 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   } else if (!state.sleeping) {
     updateRestPosition(state, camera, now, delta, t, logEvent);
     gem.position.x = state.restX;
-    gem.position.y = state.restY + bob + tickY + sigY + hopY + vibeY;
+    gem.position.y = state.restY + poseY + state.poseResidueY;
   } else {
     updateSleepPosition(state, delta);
     gem.position.x = state.restX;
-    gem.position.y = state.restY + bob + tickY;
+    gem.position.y = state.restY + poseY + state.poseResidueY;
   }
 
   // ── Escala (+ juice: estica na arrancada, amassa na chegada) ──

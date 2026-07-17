@@ -163,8 +163,18 @@ cooldowns de vergonha/nocaute.
   (`main.js` → `getWindowBounds`).
 - Poses da máquina de personalidade (zen_breathing/zen_aura/transição/
   shy/shy2) têm prioridade sobre a assinatura normal (Shimmy etc.).
-- Qualquer input zera o relógio de tédio e cancela Fidget/Stretch; se
-  dormia, Wake Startle.
+- Qualquer input zera o relógio de tédio; Fidget/Stretch em andamento
+  TERMINAM sozinhos (são curtos — cortar dava pop de pose). Se dormia,
+  Wake Startle.
+- Transições de idle (Zen, Sleep, Shutdown, Stretch) esperam o corpo ficar
+  livre: nunca disparam no meio de tique, espreguiçada, tonta ou viagem
+  (`boredom.js`). O fim do Shutdown reancora o pet onde ele caiu e NÃO
+  zera o relógio de idle (senão o Zen dos 60s nunca chegava).
+- Cortes secos residuais no Y da pose (troca de fase, assinatura cancelada)
+  são absorvidos por um amortecedor de descontinuidade em `liveAnimation.js`
+  (resíduo que decai em ~250ms).
+- Tint: durante zen_aura/transição, o tint do Ico_Eye fica em espera em
+  `state.siteTint` e é restaurado na saída do zen.
 
 ---
 

@@ -16,7 +16,13 @@ export function createSpeech({ speechEl, logEvent, getPersonality }) {
     const now = performance.now();
     if (now - lastSpeakAt < (force ? FORCE_MIN_GAP : SPEECH_COOLDOWN)) return;
 
-    const lines = getPersonality().lines[triggerKey];
+    // Gatilhos "_parked" caem no banco base se a personalidade não tiver
+    // linhas próprias pra versão estacionada (ex.: petting_parked → petting).
+    const bank = getPersonality().lines;
+    let lines = bank[triggerKey];
+    if ((!lines || lines.length === 0) && triggerKey.endsWith('_parked')) {
+      lines = bank[triggerKey.slice(0, -'_parked'.length)];
+    }
     if (!lines || lines.length === 0) return;
 
     lastSpeakAt = now;

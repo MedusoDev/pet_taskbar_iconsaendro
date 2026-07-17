@@ -70,9 +70,9 @@ const MUCH_PETTING_TRIGGER_MS = 2500; // carinho contínuo dentro da janela
 const SHY2_MS = 3500;                 // segunda vergonha, bem mais intensa
 const KNOCKOUT_COOLDOWN_MS = 120000;  // depois do nocaute: paz por 2min
 
-// O gatilho manual da tecla Z foi removido e o timer automático de "2min
-// sem interação → Zen" ainda NÃO está ligado — no momento o Zen não tem
-// porta de entrada (enterZen fica exportado esperando o gatilho definitivo).
+// Porta de entrada do Zen: o relógio de tédio (behaviors/boredom.js) chama
+// enterZen depois de 1min de idle contínuo, uma vez por ciclo (o gatilho
+// manual da tecla Z foi removido).
 
 export function createPersonalityState({ state, setPalette, setTint, logEvent, speak }) {
   state.personality = normality;
@@ -111,7 +111,8 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     state.personality = normality;
     state.zenAuraActive = false;
     state.zenBreathingActive = false;
-    setTint(null);
+    // Devolve o tint que o Ico_Eye pediu enquanto a aura era dona da cor
+    setTint(state.siteTint || null);
     setPalette(normality.palette);
     state.signatureAnim = null;
     state.zen = null;
@@ -166,9 +167,13 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     state.zen = null;
     state.zenAuraActive = false;
     state.zenBreathingActive = false;
-    setTint(null);
+    setTint(state.siteTint || null);
     setPalette(excited.palette);
     state.signatureAnim = null;
+    // O relógio de assinatura (nextSignatureAt) certamente já venceu durante
+    // o zen — sem re-agendar, a shimmy dispararia no MESMO frame da entrada,
+    // por cima da explosão da transição.
+    state.nextSignatureAt = now + 4000 + Math.random() * 4000;
     // Viagem em andamento morreria brigando com o "seguir o mouse" por
     // âncora — cancela pra ele engatar a perseguição limpo.
     cancelReloc();

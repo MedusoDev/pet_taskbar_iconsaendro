@@ -61,7 +61,18 @@ setPalette(state.personality.palette);
 logEvent('personalidade', `${state.personality.name} (paleta ${state.personality.palette[0]}…)`);
 
 // ─── Ico_Eye: categorias conhecidas por trecho do título da janela ──────────
-setupSiteEye({ setTint, siteIconEl, speak, logEvent });
+// O tint do site passa por state.siteTint: durante a zen_aura / transição
+// zen→excited (donas do tint dourado/vermelho) a troca fica em espera e é
+// restaurada na saída do zen (personalityState.js).
+setupSiteEye({
+  setTint: (color) => {
+    state.siteTint = color;
+    if (!state.zenAuraActive) setTint(color);
+  },
+  siteIconEl,
+  speak,
+  logEvent,
+});
 
 // ─── Tédio: relógio de idle + reação a input ─────────────────────────────────
 const registerInput = createRegisterInput({ logEvent, speak });

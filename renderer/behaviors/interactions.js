@@ -59,6 +59,9 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
             state.parked = true;
             state.awaitingParkAnswer = false;
             state.parkHome = { x: gem.position.x, y: gem.position.y };
+            // O cursor está aqui do lado (acabou de clicar no botão):
+            // segura o cumprimento do poleiro pra não acenar na hora.
+            state.nextPerchGreetAt = performance.now() + 25000;
             logEvent('parked', `estacionado em x=${gem.position.x.toFixed(1)} — não sai do lugar`);
           },
           () => {
@@ -138,7 +141,7 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
           if (now - state.lastPetLogAt > 5000) {
             state.lastPetLogAt = now;
             logEvent('carinho', 'recebendo cafuné');
-            speak('petting');
+            speak(state.parked ? 'petting_parked' : 'petting');
           }
         }
       }

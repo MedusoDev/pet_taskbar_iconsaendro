@@ -27,6 +27,12 @@ export const normality = {
     petting: ['Isso é bom.', 'Continua.'],
     // susto enquanto estacionado: pulou, reclama e volta pro lugar prometido
     flinch_parked: ['Ai! Que susto... já volto pro lugar.', 'Uou! Calma... tô voltando.', 'Eita! Prometi ficar ali, né... voltando.'],
+    // tique de tédio no poleiro: entediado mas orgulhoso do posto
+    fidget_parked: ['Daqui eu vejo tudo.', 'Firme no posto.', 'Meu cantinho é aqui.'],
+    // cafuné enquanto estacionado
+    petting_parked: ['Cafuné no meu cantinho... perfeito.', 'Paradinho e mimado, que vida.'],
+    // cursor passou calmo por perto do poleiro: acena/cumprimenta
+    perch_greet: ['Oi! Ainda tô aqui, viu.', 'Passando pra me ver?', 'Tô guardando o lugar direitinho.'],
     excited: ['Opa, animou.', 'Uou, tá bom demais.'],
     calmdown: ['Voltei ao normal.', 'De boa de novo.'],
   },

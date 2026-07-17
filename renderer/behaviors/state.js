@@ -19,6 +19,8 @@ export function createState(now, groundY) {
     landAt: -1e9,
     bobPhase: 0,
     breathePhase: 0,
+    prevPoseY: 0,     // amortecedor de corte seco no Y da pose (liveAnimation)
+    poseResidueY: 0,  // resíduo decaindo de uma descontinuidade absorvida
 
     // cursor global
     cursor: { x: -1, y: -1 },
@@ -48,6 +50,7 @@ export function createState(now, groundY) {
     parked: false,
     parkHome: null, // { x, y } — poleiro prometido; volta pra cá após um susto
     awaitingParkAnswer: false, // soltou com a pergunta aberta → paira esperando
+    nextPerchGreetAt: 0, // cumprimento do poleiro (cursor calmo por perto)
 
     // drag
     dragging: false,
@@ -97,6 +100,11 @@ export function createState(now, groundY) {
     viewTop: 0,
     groundY,
     screenConfig: null, // { displays: [{ x, width, floorY }] } — chão por monitor (main.js)
+
+    // Ico_Eye: tint desejado pela categoria do site ativo. Durante a
+    // zen_aura (que é dona do tint dourado/vermelho) a troca fica em espera
+    // e é restaurada na saída do zen (personalityState.js / movement.js).
+    siteTint: null,
 
     // AI_Live: máquina de personalidade (ver behaviors/personalityState.js)
     personality: null,

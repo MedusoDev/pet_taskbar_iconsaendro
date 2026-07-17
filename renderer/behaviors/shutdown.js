@@ -76,18 +76,26 @@ export function updateShutdown(state, refs, now, delta, logEvent) {
   gem.scale.setScalar(damp(state.scaleCur, 1, 2.2, delta));
   state.scaleCur = gem.scale.x;
 
+  // updateAlive não roda durante o shutdown, então a UI é cuidada aqui:
+  // balão de fala, ícone do site e barrinha seguem o gem enquanto ele cai
+  // (senão ficam pairando onde ele estava antes de despencar).
+  const { zzzEl, camera, effects, speechEl, siteIconEl, affectionBar } = refs;
+  const xPx = ((gem.position.x / state.halfWidth) + 1) / 2 * window.innerWidth;
+  const bottomPx =
+    ((gem.position.y + GEM_RADIUS * 1.15 - camera.bottom) / (camera.top - camera.bottom)) *
+      window.innerHeight + 6;
+  speechEl.style.left = `${xPx}px`;
+  speechEl.style.bottom = `${bottomPx + 14}px`;
+  siteIconEl.style.left = `${xPx}px`;
+  siteIconEl.style.bottom = `${bottomPx + 10}px`;
+  if (affectionBar) affectionBar.update(state, xPx, bottomPx);
+
   // Nocaute: dormindo apagado — z z z ao lado dele e blush escondido.
-  // (updateAlive não roda durante o shutdown, então a UI é cuidada aqui.)
   if (knockout) {
-    const { zzzEl, camera, effects } = refs;
     if (effects) effects.updateBlush(false, 0, 0);
     const showZzz = off && evT > offAt + 1.5; // já caiu e assentou
     zzzEl.classList.toggle('visible', showZzz);
     if (showZzz) {
-      const xPx = ((gem.position.x / state.halfWidth) + 1) / 2 * window.innerWidth;
-      const bottomPx =
-        ((gem.position.y + GEM_RADIUS * 1.15 - camera.bottom) / (camera.top - camera.bottom)) *
-          window.innerHeight + 6;
       zzzEl.style.left = `${xPx + 34}px`;
       zzzEl.style.bottom = `${bottomPx}px`;
     }
@@ -96,7 +104,23 @@ export function updateShutdown(state, refs, now, delta, logEvent) {
   if (evT >= dur) {
     state.shutdown = null;
     state.power = 1;
-    resetBoredom(state, now);
+    // Reancora onde ele REALMENTE está: a queda deixou o gem no chão, e o
+    // hover antigo podia estar bem mais alto — sem isso, o primeiro frame
+    // acordado teleportava ele de volta pra altura de antes do shutdown.
+    state.restX = gem.position.x;
+    state.restY = gem.position.y;
+    state.anchor.x = gem.position.x;
+    state.anchor.y = gem.position.y + 0.5;
+    if (knockout) {
+      // Nocaute veio de interação intensa (carinho): acorda descansado,
+      // ciclo de idle novo.
+      resetBoredom(state, now);
+    } else {
+      // Shutdown espontâneo NÃO é input do usuário: o relógio de tédio
+      // continua contando. (Zerar aqui rearmava outro shutdown a cada
+      // 30–50s e o Zen dos 60s nunca chegava.) Só re-agenda o tique.
+      state.nextTickAt = 0;
+    }
     logEvent('shutdown', knockout ? 'nocaute de carinho terminou — de volta ao normal' : 'de volta ao normal');
   }
 }

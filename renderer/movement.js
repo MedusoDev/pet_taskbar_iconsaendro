@@ -65,7 +65,7 @@ setupSiteEye({ setTint, siteIconEl, speak, logEvent });
 
 // ─── Tédio: relógio de idle + reação a input ─────────────────────────────────
 const registerInput = createRegisterInput({ logEvent, speak });
-const updateBoredomClock = createBoredomClock({ logEvent, speak });
+const updateBoredomClock = createBoredomClock({ logEvent, speak, personalityCtl });
 resetBoredom(state, performance.now());
 scheduleNextRelocate(state, performance.now());
 
@@ -90,13 +90,6 @@ const prompt = createPrompt();
 
 // ─── Interações de mouse: cutucar, arrastar, cafuné ──────────────────────────
 setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput, prompt });
-
-// ─── AI_Live: gatilho manual de teste — tecla Z entra no modo Zen ───────────
-window.addEventListener('keydown', (event) => {
-  if (event.key.toLowerCase() === 'z' && !state.shutdown) {
-    personalityCtl.enterZen(performance.now());
-  }
-});
 
 // ─── Loop principal ──────────────────────────────────────────────────────────
 const clock = new THREE.Clock();
@@ -124,16 +117,6 @@ function animate() {
   const t = clock.getElapsedTime();
   const now = performance.now();
   const idleSec = (now - state.lastInput) / 1000;
-
-  // ── Backflip de hora cheia ──
-  const hour = new Date().getHours();
-  if (hour !== state.lastHour) {
-    state.lastHour = hour;
-    if (!state.sleeping && !state.shutdown) {
-      state.flip = { start: now };
-      logEvent('backflip', `hora cheia (${hour}h)`);
-    }
-  }
 
   // ── Estado: shutdown tem prioridade sobre tudo; zen_aura (não
   //    interrompível) suprime o relógio de tédio enquanto durar ──

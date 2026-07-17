@@ -52,12 +52,22 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
         parkAskedThisDrag = true;
         state.awaitingParkAnswer = true;
         logEvent('pergunta', 'segurado + botão direito — quer que eu fique parado aqui?');
-        prompt.show('Quer que eu fique paradinho aqui?', 'Fica aqui', () => {
-          state.parked = true;
-          state.awaitingParkAnswer = false;
-          state.parkHome = { x: gem.position.x, y: gem.position.y };
-          logEvent('parked', `estacionado em x=${gem.position.x.toFixed(1)} — não sai do lugar`);
-        });
+        prompt.show(
+          'Quer que eu fique paradinho aqui?',
+          'Fica aqui',
+          () => {
+            state.parked = true;
+            state.awaitingParkAnswer = false;
+            state.parkHome = { x: gem.position.x, y: gem.position.y };
+            logEvent('parked', `estacionado em x=${gem.position.x.toFixed(1)} — não sai do lugar`);
+          },
+          () => {
+            // Murchou sem resposta → solta o estado pendente e volta à vida
+            state.awaitingParkAnswer = false;
+            scheduleNextRelocate(state, performance.now());
+            logEvent('pergunta', 'sem resposta — seguindo a vida');
+          }
+        );
       }
       return;
     }
@@ -198,6 +208,11 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
       );
       return;
     }
+
+    // Zen (respiração/meditação): cutucão e tonta quebrariam a pose imóvel —
+    // o clique é ignorado; interromper o zen continua sendo pelo gesto de
+    // carregar bem alto e soltar (drag segue funcionando).
+    if (state.mode === 'zen') return;
 
     // Cutucão: giro de peão + facetas abrem
     state.pokeVel += 8;

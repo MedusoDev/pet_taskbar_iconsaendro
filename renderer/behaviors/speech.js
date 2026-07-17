@@ -3,6 +3,10 @@
 
 const SPEECH_COOLDOWN = 6000; // ms mínimo entre falas
 const SPEECH_DURATION = 3500; // ms visível na tela
+// force fura o cooldown normal, mas ainda respeita um vão mínimo — senão em
+// cadeias de eventos (vergonha → respingo → rubor) uma fala atropela a outra
+// antes de dar tempo de ler.
+const FORCE_MIN_GAP = 1500;
 
 export function createSpeech({ speechEl, logEvent, getPersonality }) {
   let lastSpeakAt = 0;
@@ -10,7 +14,7 @@ export function createSpeech({ speechEl, logEvent, getPersonality }) {
 
   return function speak(triggerKey, force = false) {
     const now = performance.now();
-    if (!force && now - lastSpeakAt < SPEECH_COOLDOWN) return;
+    if (now - lastSpeakAt < (force ? FORCE_MIN_GAP : SPEECH_COOLDOWN)) return;
 
     const lines = getPersonality().lines[triggerKey];
     if (!lines || lines.length === 0) return;

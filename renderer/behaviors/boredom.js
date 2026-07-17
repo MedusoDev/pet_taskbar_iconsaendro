@@ -5,7 +5,8 @@ import { scheduleNextRelocate, groundAtX } from './wander.js';
 
 const REST_AT = 14;      // tiques de impaciência
 const STRETCH_AT = 32;   // espreguiçada (uma vez por ciclo)
-const SLEEP_AT = 65;     // dorme
+const ZEN_AT = 60;       // 1min parado → entra no modo Zen (uma vez por ciclo)
+const SLEEP_AT = 65;     // dorme (só depois do ciclo de Zen já ter acontecido)
 const SHUTDOWN_MIN = 30; // evento shutdown: sorteado entre 30 e 50s parado
 
 export function resetBoredom(state, now) {
@@ -24,6 +25,9 @@ export function createRegisterInput({ logEvent, speak }) {
     resetBoredom(state, now);
     state.tick = null;
     state.stretch = null;
+    // Input de verdade rearma o ciclo: o próximo idle longo leva ao Zen de
+    // novo (o fim da zen_aura NÃO rearma — senão ele rusharia zen→aura→zen).
+    state.zenCycleDone = false;
     if (wasSleeping) {
       // Acorda com susto, reancorado onde estiver (não voa de volta pro
       // poleiro antigo)
@@ -41,12 +45,27 @@ export function createRegisterInput({ logEvent, speak }) {
 
 /** Fábrica: entradas do relógio de tédio, avaliadas a cada frame enquanto
  * não há shutdown em andamento. */
-export function createBoredomClock({ logEvent, speak }) {
+export function createBoredomClock({ logEvent, speak, personalityCtl }) {
   return function updateBoredomClock(state, now, idleSec) {
     if (state.sleeping) return;
-    // Excited não tem tédio: tique/espreguiçada/shutdown/sono atrapalhariam
-    // a perseguição do mouse (ele está elétrico, não entediado).
-    if (state.mode === 'excited') return;
+    // Tédio só existe no Normality: no Excited ele está elétrico (não
+    // entediado) e no Zen a meditação tem os próprios timers — sono/shutdown
+    // no meio da respiração deixariam dois sistemas de pose brigando.
+    if (state.mode !== 'normality') return;
+    // No colo, caindo ou com a pergunta de estacionar aberta também não:
+    // "segurar parado" não é tédio, e shutdown/sono no meio do drag faria o
+    // gem despencar da mão do usuário (ou dormir com o balão aberto).
+    if (state.dragging || state.releaseFall || state.awaitingParkAnswer) return;
+
+    // 1min parado → medita (uma vez por ciclo de idle; quando o zen termina,
+    // o idle continua e a próxima parada é o sono)
+    if (!state.zenCycleDone && idleSec >= ZEN_AT) {
+      state.zenCycleDone = true;
+      state.tick = null;
+      state.stretch = null;
+      personalityCtl.enterZen(now);
+      return;
+    }
 
     if (idleSec >= SLEEP_AT) {
       state.sleeping = true;
@@ -70,9 +89,9 @@ export function createBoredomClock({ logEvent, speak }) {
     } else if (!state.stretch && idleSec >= REST_AT) {
       if (state.nextTickAt === 0) state.nextTickAt = now + (4000 + Math.random() * 5000);
       if (now >= state.nextTickAt && !state.tick) {
-        state.tick = { type: Math.floor(Math.random() * 3), start: now };
+        state.tick = { type: Math.floor(Math.random() * 2), start: now };
         state.nextTickAt = now + (4000 + Math.random() * 5000);
-        logEvent('tique', ['pulinho', 'giro seco', 'arrepio'][state.tick.type]);
+        logEvent('tique', ['pulinho', 'giro seco'][state.tick.type]);
         speak('fidget');
       }
     }

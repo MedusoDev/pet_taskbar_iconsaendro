@@ -54,6 +54,7 @@ export function createPrompt() {
 
   let hideTimer = null;
   let onChoose = null;
+  let onTimeout = null;
 
   // stopPropagation: o clique no botão não pode virar cutucão (o listener
   // de click de interactions.js fica na window)
@@ -64,18 +65,26 @@ export function createPrompt() {
     if (cb) cb();
   });
 
-  function show(question, optionLabel, cb) {
+  /** onTimeoutCb (opcional): chamado se a pergunta murchar SEM resposta —
+   * pra quem mostrou poder desfazer estado pendente (ex: awaitingParkAnswer). */
+  function show(question, optionLabel, cb, onTimeoutCb) {
     textEl.textContent = question;
     btn.textContent = optionLabel;
     onChoose = cb;
+    onTimeout = onTimeoutCb || null;
     el.classList.add('visible');
     clearTimeout(hideTimer);
-    hideTimer = setTimeout(hide, AUTO_HIDE_MS);
+    hideTimer = setTimeout(() => {
+      const tcb = onTimeout;
+      hide();
+      if (tcb) tcb();
+    }, AUTO_HIDE_MS);
   }
 
   function hide() {
     el.classList.remove('visible');
     onChoose = null;
+    onTimeout = null;
     clearTimeout(hideTimer);
   }
 

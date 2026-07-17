@@ -37,14 +37,34 @@ export function computeView(camera) {
  * de mundo, devolve o groundY do monitor sob aquele ponto — assim o pet sobe
  * pra "flutuar" na borda de um monitor mais baixo em vez de sumir embaixo
  * dele. Sem config (ou X fora de qualquer tela), cai no chão global. */
+// Perto da divisa entre dois monitores, o chão vira uma RAMPA (mistura dos
+// dois lados) em vez de um degrau — senão o clamp da pairada dava um soco
+// vertical no pet quando a micro-deriva cruzava a fronteira.
+const GROUND_BLEND_PX = 160;
+
 export function groundAtX(state, x) {
   const cfg = state.screenConfig;
   if (!cfg || !state.viewTop) return state.groundY;
   const screenPx = window.screenX + ((x / state.halfWidth + 1) / 2) * window.innerWidth;
   const worldPerPx = (2 * state.viewTop) / window.innerHeight;
+  const toWorld = (floorY) =>
+    state.viewTop - (floorY - window.screenY) * worldPerPx + GEM_RADIUS + 0.05;
+
   for (const d of cfg.displays) {
     if (screenPx >= d.x && screenPx < d.x + d.width) {
-      return state.viewTop - (d.floorY - window.screenY) * worldPerPx + GEM_RADIUS + 0.05;
+      let g = toWorld(d.floorY);
+      // Vizinho à direita/esquerda dentro da zona de mistura: cada lado
+      // rampa metade do caminho, e os dois se encontram no meio da divisa.
+      const right = cfg.displays.find((n) => n !== d && Math.abs(n.x - (d.x + d.width)) < 2);
+      const left = cfg.displays.find((n) => n !== d && Math.abs(n.x + n.width - d.x) < 2);
+      const distRight = d.x + d.width - screenPx;
+      const distLeft = screenPx - d.x;
+      if (right && distRight < GROUND_BLEND_PX) {
+        g += (toWorld(right.floorY) - g) * 0.5 * (1 - distRight / GROUND_BLEND_PX);
+      } else if (left && distLeft < GROUND_BLEND_PX) {
+        g += (toWorld(left.floorY) - g) * 0.5 * (1 - distLeft / GROUND_BLEND_PX);
+      }
+      return g;
     }
   }
   return state.groundY;
@@ -154,12 +174,16 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
     // Excited não faz viagens: ele já segue o mouse continuamente por âncora
     // (liveAnimation.js) — uma viagem no meio faria ele "travar" e parar.
     // Parked (estacionado pelo usuário) também não: prometeu ficar no lugar.
+    // Assinatura tocando ou pergunta de estacionar aberta: espera terminar —
+    // viajar no meio comporia a pose com o banking do voo (ou levaria o
+    // balão passeando pela tela).
     if (state.pettingNow) {
       state.nextRelocateAt = Math.max(state.nextRelocateAt, now + 3000);
     } else if (
       now >= state.nextRelocateAt &&
       state.mode !== 'excited' &&
       !state.parked &&
+      !state.signatureAnim && !state.awaitingParkAnswer &&
       !state.stretch && !state.dizzy && !state.zenAuraActive
     ) {
       const tgt = pickWanderTarget(state, camera);
@@ -168,8 +192,16 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
   }
 }
 
-/** Dormindo: pousa devagar no chão. */
+/** Dormindo: pousa devagar no chão. Estacionado, dorme NO POLEIRO prometido
+ * (mesmo no alto) — afundar até o chão quebraria a promessa do "fica aqui". */
 export function updateSleepPosition(state, delta) {
+  if (state.parked && state.parkHome) {
+    state.anchor.x = state.parkHome.x;
+    state.anchor.y = state.parkHome.y;
+    state.restX = damp(state.restX, state.parkHome.x, 1.1, delta);
+    state.restY = damp(state.restY, state.parkHome.y, 1.1, delta);
+    return;
+  }
   const g = groundAtX(state, state.anchor.x);
   state.anchor.y = g;
   state.restX = damp(state.restX, state.anchor.x, 1.1, delta);

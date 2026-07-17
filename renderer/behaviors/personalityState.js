@@ -19,10 +19,11 @@ import { normality } from '../personalities/normality.js';
 import { zen } from '../personalities/zen.js';
 import { excited } from '../personalities/excited.js';
 import { clamp } from './mathUtils.js';
+import { resetBoredom } from './boredom.js';
 
 // ── Zen: respiração / aura ──
 const ZEN_AURA_DURATION_MS = zen.zenAura.duration * 1000;
-const ZEN_BREATHING_ESCALATE_MS = 120000; // 2min contínuos em breathing → zen_aura
+const ZEN_BREATHING_ESCALATE_MS = 240000; // 4min contínuos em breathing → zen_aura (sem rush)
 const BREATHING_LIFT_THRESHOLD = 14; // unidades de mundo: carregado bem alto → quebra o transe
 const ZEN_AURA_TINT = '#FBBF24'; // dourado
 
@@ -69,9 +70,9 @@ const MUCH_PETTING_TRIGGER_MS = 2500; // carinho contínuo dentro da janela
 const SHY2_MS = 3500;                 // segunda vergonha, bem mais intensa
 const KNOCKOUT_COOLDOWN_MS = 120000;  // depois do nocaute: paz por 2min
 
-// O timer automático de "2min sem interação → Zen" ainda NÃO está ligado.
-// Por pedido explícito: por enquanto só entra no Zen pelo gatilho manual
-// (tecla Z), pra permitir testar Zen isoladamente.
+// O gatilho manual da tecla Z foi removido e o timer automático de "2min
+// sem interação → Zen" ainda NÃO está ligado — no momento o Zen não tem
+// porta de entrada (enterZen fica exportado esperando o gatilho definitivo).
 
 export function createPersonalityState({ state, setPalette, setTint, logEvent, speak }) {
   state.personality = normality;
@@ -90,6 +91,9 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     state.personality = zen;
     setPalette(zen.palette);
     state.signatureAnim = null;
+    // Viagem em andamento brigaria com a pose de respiração imóvel (e o
+    // baselineY sairia do meio do voo) — assenta onde está antes de meditar.
+    cancelReloc();
     state.zenBreathingActive = true;
     state.zen = {
       breathing: { start: now, baselineY: state.restY, peakLift: 0, wasDragging: false },
@@ -111,6 +115,10 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     setPalette(normality.palette);
     state.signatureAnim = null;
     state.zen = null;
+    // O tempo meditando não conta como idle: recomeça o relógio de tédio do
+    // zero (zenCycleDone segue true — sem input novo, a próxima parada do
+    // idle é o sono, não outro zen; senão ele rusharia zen→aura→zen).
+    resetBoredom(state, now);
     logEvent('zen', `saiu do modo zen (${reason})`);
   }
 

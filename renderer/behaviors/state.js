@@ -76,6 +76,7 @@ export function createState(now, groundY) {
     tick: null, // { type: 0|1|2, start }
     stretch: null, // { start }
     stretchDone: false,
+    zenCycleDone: false, // já meditou neste ciclo de idle (rearma com input)
     shutdownAt: 0,
     shutdownDone: false,
     shutdown: null, // { start, vy, falling, bounces, startled }
@@ -85,8 +86,6 @@ export function createState(now, groundY) {
     dizzy: null, // { start }
 
     // eventos extras
-    flip: null, // { start } — backflip de hora cheia
-    lastHour: new Date().getHours(),
     wakeJolt: 0,
 
     // interação de mouse

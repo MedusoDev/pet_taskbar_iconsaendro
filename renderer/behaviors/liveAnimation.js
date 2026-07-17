@@ -2,7 +2,7 @@
 // é shutdown — assinatura da personalidade, carinho/empolgado, tiques,
 // espreguiçada, tonta, backflip, respiração das facetas, posição (via
 // wander.js), escala e a rotação final do corpo.
-import { clamp, smooth, pulse, stretchEnv, damp } from './mathUtils.js';
+import { clamp, pulse, stretchEnv, damp } from './mathUtils.js';
 import { createNoise2D } from '../noise.js';
 import { GEM_RADIUS } from '../scene.js';
 import {
@@ -154,14 +154,17 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     if (!state.dragging && !state.releaseFall) {
       // Susto não interrompe cafuné em andamento: se ele já aceitou o
       // carinho (pettingNow), esfregar rápido não o espanta.
-      // Empolgado não se assusta: susto dispararia uma viagem de fuga que
-      // brigaria com a perseguição contínua do mouse.
+      // Só no Normality: no Excited a fuga brigaria com a perseguição do
+      // mouse, e no Zen quebraria a premissa da respiração imóvel.
+      // Com a pergunta de estacionar aberta também não: fugir levaria o
+      // "Fica aqui" a salvar um poleiro que o usuário não escolheu.
       if (
         distPx < NEAR_PX * 1.2 &&
         state.cursorVel > FLINCH_SPEED &&
         now > state.flinchUntil &&
         !state.pettingNow &&
-        !isExcited
+        state.mode === 'normality' &&
+        !state.awaitingParkAnswer
       ) {
         // Susto: cursor voando pra cima dele → esquiva rápida pro lado oposto
         state.flinchUntil = now + FLINCH_COOLDOWN;
@@ -239,17 +242,17 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   state.lookPitch = damp(state.lookPitch, wantPitch, 3, delta);
 
   // ── Tiques de impaciência ──
-  let tickY = 0, tickYaw = 0, tickUnfold = 0;
+  // (o "arrepio" por unfold foi removido: brigava com a pilha de unfold da
+  // respiração/espreguiçada e lia mal — ficaram pulinho e giro seco)
+  let tickY = 0, tickYaw = 0;
   if (state.tick) {
     const p = (now - state.tick.start) / 800;
     if (p >= 1) {
       state.tick = null;
     } else if (state.tick.type === 0) {
       tickY = pulse(p) * 0.28;                       // pulinho
-    } else if (state.tick.type === 1) {
-      tickYaw = Math.sin(p * Math.PI * 2) * 0.503;    // giro seco vai-e-volta
     } else {
-      tickUnfold = pulse(p) * 0.22;                    // arrepio
+      tickYaw = Math.sin(p * Math.PI * 2) * 0.503;    // giro seco vai-e-volta
     }
   }
 
@@ -278,17 +281,6 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     }
   }
 
-  // ── Backflip ──
-  let flipX = 0;
-  if (state.flip) {
-    const p = (now - state.flip.start) / 1150;
-    if (p >= 1) {
-      state.flip = null;
-    } else {
-      flipX = -smooth(p) * Math.PI * 2;
-    }
-  }
-
   // ── Susto ao acordar (decai sozinho) ──
   state.wakeJolt = damp(state.wakeJolt, 0, 2.4, delta);
 
@@ -298,7 +290,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     ? 0.015
     : 0.05 + Math.sin(state.breathePhase) * (0.018 + 0.02 * n01(noiseMod(t * 0.05, 45)));
   const unfoldTarget = clamp(
-    breathe + tickUnfold + stretchUnfold + state.wakeJolt + sigUnfold + state.petLean * 0.12,
+    breathe + stretchUnfold + state.wakeJolt + sigUnfold + state.petLean * 0.12,
     0,
     1
   );
@@ -360,7 +352,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     delta
   );
   mesh.rotation.y = state.spin + state.lookYaw + tickYaw;
-  mesh.rotation.x = state.tiltX + state.lookPitch + flipX - pitchVel;
+  mesh.rotation.x = state.tiltX + state.lookPitch - pitchVel;
   mesh.rotation.z = state.tiltZ + dizzyZ + bankZ + sigZ + vibeZ;
 
   // ── zzz ──

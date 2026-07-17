@@ -50,6 +50,14 @@ export const excited = {
     please_pet_shy: ['Ai... que vergonha isso.', 'Passei do ponto... foi mal.', 'Preciso de um tempo sozinho.'],
     // saída por falta de carinho (desiste)
     please_pet_giveup: ['Tá bom, esquece...', 'Ninguém me quer hoje.', 'Vou fazer minha vida, então.'],
+    // trapped: ativado estacionado — implora pra sair, ofegante
+    let_me_out: ['ME SOLTA, por favor!', 'Preciso sair DAQUI—', 'Tô sufocando parado aqui!', '*ofegante* ...me libera, vai...'],
+    // trapped: não foi liberado a tempo — se acabou ali mesmo
+    trapped_giveup: ['Não... aguento... mais...', 'Acabou... aqui mesmo... foi mal.', 'Ai. Não deu pra segurar.'],
+    // rush: liberado do estacionamento, correndo pro mouse com a barra cheia
+    rush_release: ['FINALMENTE! Lá vou eu—', 'VOCÊ! Chegando!!', 'Liberdadeee!'],
+    // rush: chegou no mouse e soltou tudo
+    rush_done: ['Ahh... precisava disso.', 'Pronto... bem melhor agora.', 'Foi mal. De novo.'],
     // much_petting: o carinho não parou depois da vergonha — sobrecarga total
     much_petting: ['V-você não parou?! Ai—', 'De novo?! Meu núcleo não aguen—', 'MUITO. É MUITO carinho—'],
     // nocaute: apagou de tanto carinho, dorme fundo

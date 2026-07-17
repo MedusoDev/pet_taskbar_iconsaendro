@@ -30,9 +30,12 @@ function getWindowBounds() {
 
   // Altura vertical ancorada na taskbar do monitor primário (em setups com
   // monitores alinhados/mesma resolução, vale para os dois).
+  // Taskbar oculta (auto-hide → workArea == bounds) ou em outra borda:
+  // ancora no RODAPÉ da tela mesmo assim — antes caía em bounds.y (topo) e
+  // o pet ficava flutuando no alto da tela.
   const y = taskbarAtBottom
     ? workArea.y + workArea.height - WINDOW_HEIGHT
-    : bounds.y;
+    : bounds.y + bounds.height - WINDOW_HEIGHT;
 
   return { x: minX, y, width: maxX - minX, height: WINDOW_HEIGHT };
 }

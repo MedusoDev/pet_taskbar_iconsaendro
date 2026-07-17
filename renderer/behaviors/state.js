@@ -43,6 +43,11 @@ export function createState(now, groundY) {
     vibeStart: -1e9,     // pulso de vibração de excitação em andamento
     nextVibeAt: 0,
 
+    // parked: segurado por 3s → perguntou → ficou parado no lugar
+    // (clicar nele parado pergunta se pode voltar a passear)
+    parked: false,
+    awaitingParkAnswer: false, // soltou com a pergunta aberta → paira esperando
+
     // drag
     dragging: false,
     dragOffsetX: 0,
@@ -107,5 +112,6 @@ export function createState(now, groundY) {
     shyRoundUntil: 0,          // janela pós-shy: carinho contínuo → much_petting
     muchPettingMs: 0,          // ms de carinho acumulado dentro da janela
     paletteHoldMaxUntil: 0,    // rubor: cor do Excited segura enquanto há cafuné
+    rushArrived: false,        // fase rush: chegou perto do mouse (liveAnimation)
   };
 }

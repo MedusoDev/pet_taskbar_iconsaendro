@@ -130,11 +130,13 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
     // Recebendo cafuné também não sai andando no meio do carinho.
     // Excited não faz viagens: ele já segue o mouse continuamente por âncora
     // (liveAnimation.js) — uma viagem no meio faria ele "travar" e parar.
+    // Parked (estacionado pelo usuário) também não: prometeu ficar no lugar.
     if (state.pettingNow) {
       state.nextRelocateAt = Math.max(state.nextRelocateAt, now + 3000);
     } else if (
       now >= state.nextRelocateAt &&
       state.mode !== 'excited' &&
+      !state.parked &&
       !state.stretch && !state.dizzy && !state.zenAuraActive
     ) {
       const tgt = pickWanderTarget(state, camera);

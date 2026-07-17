@@ -66,6 +66,8 @@ export const zen = {
     excited: ['Ok... você conseguiu me tirar do zen.', 'Uau... tá me deixando bobo.'],
     calmdown: ['Voltei pro meu zen.', 'Respirando de novo...'],
     zen_enter: ['Ah... hora de desacelerar.', 'Vou entrar na paz agora.'],
+    // zen estacionado: parado é o lugar perfeito — nem pede pra sair
+    zen_parked: ['Parado assim... perfeito pro autocontrole.', 'Quietinho no lugar. Ideal pra meditar.', 'Nem preciso andar. Só respirar.'],
     zen_breathing: ['Inspira... expira...', 'Mantém a calma comigo.', 'Um momento só nosso.'],
     zen_aura: ['Quase virei um ser vivo...', 'Quase eu toquei o user no físico...'],
     // zen_much_more_excited: carinho contínuo demais durante o zen_breathing

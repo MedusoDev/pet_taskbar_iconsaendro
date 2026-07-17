@@ -14,6 +14,7 @@ import { setupInteractions } from './behaviors/interactions.js';
 import { updateAlive } from './behaviors/liveAnimation.js';
 import { createAffectionBar } from './behaviors/affectionBar.js';
 import { createEffects } from './behaviors/effects.js';
+import { createPrompt } from './behaviors/prompt.js';
 
 const canvas = document.getElementById('pet-canvas');
 const zzzEl = document.getElementById('zzz');
@@ -75,8 +76,11 @@ if (window.petAPI && window.petAPI.onCursorMove) {
   });
 }
 
+// ─── Balão de pergunta clicável (estacionar/liberar — ver interactions.js) ──
+const prompt = createPrompt();
+
 // ─── Interações de mouse: cutucar, arrastar, cafuné ──────────────────────────
-setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput });
+setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput, prompt });
 
 // ─── AI_Live: gatilho manual de teste — tecla Z entra no modo Zen ───────────
 window.addEventListener('keydown', (event) => {
@@ -89,7 +93,7 @@ window.addEventListener('keydown', (event) => {
 const clock = new THREE.Clock();
 const affectionBar = createAffectionBar();
 const effects = createEffects();
-const refs = { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects };
+const refs = { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects, prompt };
 const deps = { logEvent, speak, personalityCtl };
 let rafPaused = false;
 let rafId = 0;

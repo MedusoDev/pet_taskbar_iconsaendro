@@ -28,7 +28,7 @@ function gemScreenX(state, camera, gem) {
 }
 
 export function updateAlive(state, refs, deps, now, delta, t) {
-  const { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects } = refs;
+  const { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects, prompt } = refs;
   const { logEvent, speak, personalityCtl } = deps;
   const personality = state.personality;
   const isExcited = state.mode === 'excited';
@@ -135,6 +135,12 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     const distPx = Math.hypot(cx - gx, cy - gy);
     const near = distPx < NEAR_PX * 1.4;
 
+    // Fase rush (liberado do estacionamento com a barra cheia): chegou
+    // perto do mouse → personalityState solta as gotículas e alivia
+    if (isExcited && state.excitedState && state.excitedState.phase === 'rush' && distPx < 90) {
+      state.rushArrived = true;
+    }
+
     // Perto e devagar = atenção redobrada; em viagem "de visita" ao mouse,
     // o olhar também fica pregado nele; empolgado, nem se fala
     const visiting = state.reloc && state.reloc.toCursor;
@@ -170,7 +176,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
           false,
           logEvent
         );
-      } else if (excitedChasing && !state.reloc) {
+      } else if (excitedChasing && !state.reloc && !state.parked) {
         const cursorWorldX = ((cx / window.innerWidth) * 2 - 1) * camera.right;
         const limit = state.halfWidth - GEM_RADIUS - EDGE_MARGIN;
         // Órbita de empolgação: cursor parado na fase need_you (sem cafuné
@@ -193,7 +199,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
           // Empolgado: segue o mouse direto, a tela inteira, querendo mais
           state.anchor.x = damp(state.anchor.x, clamp(cursorWorldX, -limit, limit), 1.6, delta);
         }
-      } else if (!state.reloc && near && state.cursorVel < 250 && personality.movement.approach > 0) {
+      } else if (!state.reloc && !state.parked && near && state.cursorVel < 250 && personality.movement.approach > 0) {
         // Cursor parado por perto → gravita na direção dele (Manhoso adora)
         const cursorWorldX = ((cx / window.innerWidth) * 2 - 1) * camera.right;
         const limit = state.halfWidth - GEM_RADIUS - EDGE_MARGIN;
@@ -360,6 +366,11 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   if (affectionBar) affectionBar.update(state, gemScreenX(state, camera, gem), uiBottomPx);
   siteIconEl.style.bottom = `${uiBottomPx + 10}px`;
   speechEl.style.bottom = `${uiBottomPx + 14}px`;
+
+  // ── Balão de pergunta (estacionar/liberar) acompanha o gem ──
+  if (prompt && prompt.visible) {
+    prompt.updatePosition(gemScreenX(state, camera, gem), uiBottomPx + 14);
+  }
 
   // ── Vergonha: respingo pendente + blush "///" grudado no corpo ──
   if (effects) {

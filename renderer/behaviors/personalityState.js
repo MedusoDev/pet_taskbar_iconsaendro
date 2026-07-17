@@ -6,6 +6,10 @@
 //   Zen ──(2min contínuos em zen_breathing)──▶ zen_aura ──(termina)──▶ Normality
 //   Zen ──(carregado bem alto e solto)──▶ Normality
 //   Zen ──(carinho contínuo por ~6s, teste)──▶ zen_much_more_excited ──▶ Excited
+//     Excited estacionado (parked): trapped (implora ofegante pra sair)
+//       trapped ──(unpark)──▶ rush (barra cheia, corre pro mouse) ──(chegou
+//         perto)──▶ solta as gotículas ──▶ Normality
+//       trapped ──(14s sem liberar)──▶ se acaba ali mesmo ──▶ Normality
 //     Excited: need_you (segue o mouse) ──▶ please_pet (pede carinho)
 //       please_pet ──(carinho demais)──▶ shy (respinga, blush ///) ──▶ Normality
 //         shy ──(carinho continua na janela)──▶ shy2/much_petting (2x mais
@@ -51,6 +55,12 @@ const SHY_BLUSH_EXTRA_MS = 2500;     // blush "///" ainda visível depois de sai
 const SHY_COOLDOWN_MS = 30000;       // vergonha recente → supercarga não recarrega
 const SHY_PALETTE_HOLD_MAX_MS = 8000; // rubor: cor do Excited segura enquanto o cafuné continua
 
+// ── Excited estacionado (trapped): implora pra sair, ofegante ──
+// Liberado (unpark) → rush: sai com a barra cheia e alivia ao chegar no
+// mouse. Não liberado a tempo → se acaba ali mesmo e volta pro Normality.
+const TRAPPED_GIVEUP_MS = 14000;
+// ("perto do mouse" do rush = 90px, checado em liveAnimation.js → rushArrived)
+
 // ── much_petting: o carinho NÃO parou depois da vergonha ──
 // Reincide direto na sobrecarga (shy2), muito mais intensa, e termina
 // apagando: shutdown variante "nocaute" com z z z por ~1min (shutdown.js).
@@ -87,8 +97,9 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
       transition: null,
       pettingStreakStart: 0,
     };
-    logEvent('zen', 'entrou no modo zen — respiração imóvel');
-    speak('zen_enter', true);
+    logEvent('zen', 'entrou no modo zen — respiração imóvel' + (state.parked ? ' (estacionado: autocontrole perfeito)' : ''));
+    // Estacionado ele nem reclama: parado é o lugar ideal pra meditar
+    speak(state.parked ? 'zen_parked' : 'zen_enter', true);
   }
 
   function exitZenToNormality(reason, now) {
@@ -153,15 +164,22 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     // Viagem em andamento morreria brigando com o "seguir o mouse" por
     // âncora — cancela pra ele engatar a perseguição limpo.
     cancelReloc();
-    state.excitedState = {
-      phase: 'needYou',
-      needYouUntil: now + NEED_YOU_MIN_MS + Math.random() * (NEED_YOU_MAX_MS - NEED_YOU_MIN_MS),
-      nextHeartAt: now + HEART_MIN_MS,
-      lastPetSeenAt: 0,
-      pettingMsInPleasePet: 0,
-    };
-    logEvent('excited', 'explodiu — modo Excited ativado!');
-    speak('excited', true);
+    if (state.parked) {
+      // Estacionado: não pode perseguir — fica preso implorando pra sair
+      state.excitedState = { phase: 'trapped', trappedStart: now, nextPleaAt: now + 800 };
+      logEvent('excited', 'ativado PRESO (estacionado) — implorando pra sair!');
+      speak('let_me_out', true);
+    } else {
+      state.excitedState = {
+        phase: 'needYou',
+        needYouUntil: now + NEED_YOU_MIN_MS + Math.random() * (NEED_YOU_MAX_MS - NEED_YOU_MIN_MS),
+        nextHeartAt: now + HEART_MIN_MS,
+        lastPetSeenAt: 0,
+        pettingMsInPleasePet: 0,
+      };
+      logEvent('excited', 'explodiu — modo Excited ativado!');
+      speak('excited', true);
+    }
   }
 
   // Carinho demais no please_pet: gotículas brancas espirram, o blush "///"
@@ -358,6 +376,59 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
   function updateExcited(now, delta) {
     const es = state.excitedState;
     if (!es) return null;
+
+    // fase trapped: ativado estacionado — preso, implora pra sair com
+    // veemência, respirando ofegante
+    if (es.phase === 'trapped') {
+      // Liberado (unpark)! Sai com a barra cheia, correndo pro mouse
+      if (!state.parked) {
+        es.phase = 'rush';
+        state.affection = 1.2;
+        state.rushArrived = false;
+        logEvent('excited', 'LIBERADO — correndo pro mouse com tudo');
+        speak('rush_release', true);
+        return null;
+      }
+      if (now >= es.nextPleaAt) {
+        es.nextPleaAt = now + 2000 + Math.random() * 1500;
+        speak('let_me_out', true);
+      }
+      // Não foi liberado a tempo → se acaba ali mesmo e volta pro Normality
+      if (now - es.trappedStart >= TRAPPED_GIVEUP_MS) {
+        state.pendingBurst = true;
+        state.blushUntil = now + 5000;
+        state.affection = Math.min(state.affection, 0.25);
+        state.excitedCooldownUntil = now + SHY_COOLDOWN_MS;
+        speak('trapped_giveup', true);
+        exitExcitedToNormality('preso e não liberado — se acabou ali mesmo', now);
+        return null;
+      }
+      // Ofegante: respiração rápida e curta + tremidinha, no lugar
+      const el = now - es.trappedStart;
+      const pant = (Math.sin(el / 110) + 1) / 2;
+      return {
+        z: Math.sin(el / 45) * 0.06,
+        y: pant * 0.18,
+        scale: pant * 0.05,
+        unfold: 0.15 + pant * 0.3,
+        spinMul: 1.6,
+      };
+    }
+
+    // fase rush: liberado do estacionamento — persegue o mouse com a barra
+    // cheia; chegou perto (ver liveAnimation.js) → solta tudo e alivia
+    if (es.phase === 'rush') {
+      if (state.rushArrived) {
+        state.rushArrived = false;
+        state.pendingBurst = true;
+        state.blushUntil = now + 5500;
+        state.affection = 0;
+        state.excitedCooldownUntil = now + SHY_COOLDOWN_MS;
+        speak('rush_done', true);
+        exitExcitedToNormality('chegou no mouse — soltou tudo e aliviou', now);
+      }
+      return null;
+    }
 
     // fase shy2 (much_petting): segunda sobrecarga, MUITO mais intensa —
     // treme forte o tempo todo, gira alucinado, respinga duas vezes e no

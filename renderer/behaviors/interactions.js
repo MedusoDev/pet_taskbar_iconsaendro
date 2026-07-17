@@ -3,12 +3,18 @@
 // captura eventos quando o cursor está de fato em cima do gem).
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { GEM_RADIUS } from '../scene.js';
-import { EDGE_MARGIN } from './wander.js';
+import { EDGE_MARGIN, scheduleNextRelocate } from './wander.js';
 import { clamp } from './mathUtils.js';
 
-export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput }) {
+// Segurado no colo por este tempo → ele pergunta se quer ficar parado ali
+const PARK_HOLD_MS = 3000;
+
+export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput, prompt }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+
+  let dragStartAt = 0;
+  let parkAskedThisDrag = false;
 
   // Cafuné exige esfregada de verdade: o cursor precisa fazer vai-e-vem em
   // cima dele (inversões de direção) — só passar por cima não conta.
@@ -45,6 +51,8 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
     state.releaseFall = null;
     state.signatureAnim = null;
     state.dragDistance = 0;
+    dragStartAt = performance.now();
+    parkAskedThisDrag = false;
     state.lastPointerScreen = { x: event.clientX, y: event.clientY };
     logEvent('colo', 'pegou ele no colo');
     speak('drag');
@@ -65,6 +73,23 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
       const limit = state.halfWidth - GEM_RADIUS - EDGE_MARGIN;
       gem.position.x = clamp(wp.x + state.dragOffsetX, -limit, limit);
       gem.position.y = clamp(wp.y + state.dragOffsetY, state.groundY, camera.top - GEM_RADIUS - 0.1);
+
+      // Segurado por 3s → ele pergunta se quer ficar parado aqui
+      if (
+        prompt &&
+        !state.parked &&
+        !parkAskedThisDrag &&
+        performance.now() - dragStartAt >= PARK_HOLD_MS
+      ) {
+        parkAskedThisDrag = true;
+        state.awaitingParkAnswer = true;
+        logEvent('pergunta', 'segurado por 3s — quer que eu fique parado aqui?');
+        prompt.show('Quer que eu fique paradinho aqui?', 'Fica aqui', () => {
+          state.parked = true;
+          state.awaitingParkAnswer = false;
+          logEvent('parked', `estacionado em x=${gem.position.x.toFixed(1)} — não sai do lugar`);
+        });
+      }
 
       if (state.ignoringMouseEvents && window.petAPI) {
         window.petAPI.setIgnoreMouseEvents(false);
@@ -105,7 +130,10 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
       }
     }
 
-    const shouldIgnore = !overPet;
+    // Cursor sobre o balão de pergunta também segura os eventos (senão o
+    // click-through engole o clique no botão)
+    const overPrompt = prompt && prompt.isPointOver(event.clientX, event.clientY);
+    const shouldIgnore = !overPet && !overPrompt;
     if (shouldIgnore !== state.ignoringMouseEvents && window.petAPI) {
       window.petAPI.setIgnoreMouseEvents(shouldIgnore);
       state.ignoringMouseEvents = shouldIgnore;
@@ -115,6 +143,18 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
   window.addEventListener('mouseup', () => {
     if (!state.dragging) return;
     state.dragging = false;
+    // Soltou com a pergunta de estacionar aberta → não cai: fica pairando
+    // ali, esperando a resposta (o clique no botão vem depois do mouseup)
+    if (state.awaitingParkAnswer) {
+      state.awaitingParkAnswer = false;
+      state.releaseFall = null;
+      state.restX = gem.position.x;
+      state.restY = gem.position.y;
+      state.anchor.x = state.restX;
+      state.anchor.y = state.restY;
+      logEvent('soltou', 'pairando no lugar, esperando a resposta...');
+      return;
+    }
     state.releaseFall = { vy: 0, bounces: 0 };
     logEvent('soltou', 'caindo...');
   });
@@ -129,6 +169,23 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
     if (!isPointerOverPet(event) || state.shutdown || state.zenAuraActive) return;
 
     registerInput(state, performance.now());
+
+    // Estacionado: o clique vira a pergunta de liberação, não cutucão.
+    // Preso no Excited a súplica é bem mais veemente.
+    if (state.parked && prompt) {
+      const desperate = state.mode === 'excited';
+      logEvent('pergunta', desperate ? 'cutucado preso e EXCITADO — implorando' : 'cutucado parado — posso voltar a passear?');
+      prompt.show(
+        desperate ? 'ME SOLTA! Por favor, por favor—' : 'Posso voltar a passear?',
+        desperate ? 'Vai!' : 'Pode ir!',
+        () => {
+          state.parked = false;
+          scheduleNextRelocate(state, performance.now());
+          logEvent('parked', 'liberado — voltando a passear');
+        }
+      );
+      return;
+    }
 
     // Cutucão: giro de peão + facetas abrem
     state.pokeVel += 8;

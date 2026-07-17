@@ -28,10 +28,13 @@ function gemScreenX(state, camera, gem) {
 }
 
 export function updateAlive(state, refs, deps, now, delta, t) {
-  const { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar } = refs;
+  const { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects } = refs;
   const { logEvent, speak, personalityCtl } = deps;
   const personality = state.personality;
   const isExcited = state.mode === 'excited';
+  // Nas fases shy/shy2 (saída envergonhada) ele para de perseguir o mouse
+  const excitedChasing =
+    isExcited && state.excitedState && !state.excitedState.phase.startsWith('shy');
 
   // ── Máquina de personalidade: zen_breathing / zen_aura /
   // zen_much_more_excited têm pose própria, com prioridade sobre a
@@ -83,12 +86,28 @@ export function updateAlive(state, refs, deps, now, delta, t) {
 
   // Pulinhos tentando alcançar o cursor (só empolgado, pairando)
   let hopY = 0;
-  if (isExcited && !state.sleeping) {
+  if (excitedChasing && !state.sleeping) {
     if (!state.reloc && now >= state.nextExcitedHopAt) {
       state.excitedHopStart = now;
       state.nextExcitedHopAt = now + 1100 + Math.random() * 1300;
     }
     hopY = pulse((now - state.excitedHopStart) / 620) * 0.85;
+  }
+
+  // Vibração de excitação: pulsos curtos de tremedeira de alta frequência —
+  // empolgado, ele não consegue ficar parado
+  let vibeZ = 0, vibeY = 0;
+  if (excitedChasing && !state.sleeping) {
+    if (now >= state.nextVibeAt) {
+      state.vibeStart = now;
+      state.nextVibeAt = now + 2200 + Math.random() * 2800;
+    }
+    const vp = (now - state.vibeStart) / 450;
+    if (vp < 1) {
+      const env = Math.sin(vp * Math.PI);
+      vibeZ = Math.sin((now - state.vibeStart) / 9) * 0.07 * env;
+      vibeY = Math.sin((now - state.vibeStart) / 7) * 0.045 * env;
+    }
   }
 
   // ── Rotação base (velocidade vagando por ruído — nunca metrônomo) ──
@@ -119,7 +138,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     // Perto e devagar = atenção redobrada; em viagem "de visita" ao mouse,
     // o olhar também fica pregado nele; empolgado, nem se fala
     const visiting = state.reloc && state.reloc.toCursor;
-    const gazeGain = isExcited ? 1.8 : near && state.cursorVel < 400 ? 1.7 : visiting ? 1.5 : 1;
+    const gazeGain = excitedChasing ? 1.8 : near && state.cursorVel < 400 ? 1.7 : visiting ? 1.5 : 1;
     const dx = clamp((cx - gx) / (window.screen.width / 2), -1, 1);
     const dy = clamp((cy - gy) / (window.screen.height / 2), -1, 1);
     wantYaw = clamp(dx * 0.45 * gazeGain, -0.42, 0.42);
@@ -128,11 +147,14 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     if (!state.dragging && !state.releaseFall) {
       // Susto não interrompe cafuné em andamento: se ele já aceitou o
       // carinho (pettingNow), esfregar rápido não o espanta.
+      // Empolgado não se assusta: susto dispararia uma viagem de fuga que
+      // brigaria com a perseguição contínua do mouse.
       if (
         distPx < NEAR_PX * 1.2 &&
         state.cursorVel > FLINCH_SPEED &&
         now > state.flinchUntil &&
-        !state.pettingNow
+        !state.pettingNow &&
+        !isExcited
       ) {
         // Susto: cursor voando pra cima dele → esquiva rápida pro lado oposto
         state.flinchUntil = now + FLINCH_COOLDOWN;
@@ -148,11 +170,29 @@ export function updateAlive(state, refs, deps, now, delta, t) {
           false,
           logEvent
         );
-      } else if (isExcited && !state.reloc) {
-        // Empolgado: segue o mouse direto, a tela inteira, querendo mais
+      } else if (excitedChasing && !state.reloc) {
         const cursorWorldX = ((cx / window.innerWidth) * 2 - 1) * camera.right;
         const limit = state.halfWidth - GEM_RADIUS - EDGE_MARGIN;
-        state.anchor.x = damp(state.anchor.x, clamp(cursorWorldX, -limit, limit), 1.6, delta);
+        // Órbita de empolgação: cursor parado na fase need_you (sem cafuné
+        // rolando) → dá voltas em torno dele em vez de só encostar do lado
+        const orbiting =
+          state.excitedState.phase === 'needYou' && state.cursorVel < 160 && !state.pettingNow;
+        if (orbiting) {
+          state.orbitAngle += delta * 2.2;
+          const cursorWorldY =
+            camera.top - (cy / window.innerHeight) * (camera.top - camera.bottom);
+          const cwy = clamp(cursorWorldY, state.groundY + GEM_RADIUS, camera.top - GEM_RADIUS);
+          state.anchor.x = damp(
+            state.anchor.x,
+            clamp(cursorWorldX + Math.cos(state.orbitAngle) * 3.2, -limit, limit),
+            2.2,
+            delta
+          );
+          state.anchor.y = damp(state.anchor.y, cwy + Math.sin(state.orbitAngle) * 1.8, 2.2, delta);
+        } else {
+          // Empolgado: segue o mouse direto, a tela inteira, querendo mais
+          state.anchor.x = damp(state.anchor.x, clamp(cursorWorldX, -limit, limit), 1.6, delta);
+        }
       } else if (!state.reloc && near && state.cursorVel < 250 && personality.movement.approach > 0) {
         // Cursor parado por perto → gravita na direção dele (Manhoso adora)
         const cursorWorldX = ((cx / window.innerWidth) * 2 - 1) * camera.right;
@@ -249,7 +289,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   } else if (!state.sleeping) {
     updateRestPosition(state, camera, now, delta, t, logEvent);
     gem.position.x = state.restX;
-    gem.position.y = state.restY + bob + tickY + sigY + hopY;
+    gem.position.y = state.restY + bob + tickY + sigY + hopY + vibeY;
   } else {
     updateSleepPosition(state, delta);
     gem.position.x = state.restX;
@@ -292,7 +332,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   );
   mesh.rotation.y = state.spin + state.lookYaw + tickYaw;
   mesh.rotation.x = state.tiltX + state.lookPitch + flipX - pitchVel;
-  mesh.rotation.z = state.tiltZ + dizzyZ + bankZ + sigZ;
+  mesh.rotation.z = state.tiltZ + dizzyZ + bankZ + sigZ + vibeZ;
 
   // ── zzz ──
   if (state.sleeping) {
@@ -320,4 +360,17 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   if (affectionBar) affectionBar.update(state, gemScreenX(state, camera, gem), uiBottomPx);
   siteIconEl.style.bottom = `${uiBottomPx + 10}px`;
   speechEl.style.bottom = `${uiBottomPx + 14}px`;
+
+  // ── Vergonha: respingo pendente + blush "///" grudado no corpo ──
+  if (effects) {
+    const gemXPx = gemScreenX(state, camera, gem);
+    const gemCenterBottomPx =
+      ((gem.position.y - camera.bottom) / (camera.top - camera.bottom)) * window.innerHeight;
+    if (state.pendingBurst) {
+      state.pendingBurst = false;
+      effects.burstLiquid(gemXPx, gemCenterBottomPx, state.pendingBurstIntense ? 2.2 : 1);
+      state.pendingBurstIntense = false;
+    }
+    effects.updateBlush(now < state.blushUntil && !state.sleeping, gemXPx, gemCenterBottomPx);
+  }
 }

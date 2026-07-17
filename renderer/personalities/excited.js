@@ -50,5 +50,9 @@ export const excited = {
     please_pet_shy: ['Ai... que vergonha isso.', 'Passei do ponto... foi mal.', 'Preciso de um tempo sozinho.'],
     // saída por falta de carinho (desiste)
     please_pet_giveup: ['Tá bom, esquece...', 'Ninguém me quer hoje.', 'Vou fazer minha vida, então.'],
+    // much_petting: o carinho não parou depois da vergonha — sobrecarga total
+    much_petting: ['V-você não parou?! Ai—', 'De novo?! Meu núcleo não aguen—', 'MUITO. É MUITO carinho—'],
+    // nocaute: apagou de tanto carinho, dorme fundo
+    knockout: ['Erro fatal... de amor...', 'Desligando... feliz...', 'Valeu... a pena... zzz'],
   },
 };

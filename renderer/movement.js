@@ -13,6 +13,7 @@ import { updateShutdown } from './behaviors/shutdown.js';
 import { setupInteractions } from './behaviors/interactions.js';
 import { updateAlive } from './behaviors/liveAnimation.js';
 import { createAffectionBar } from './behaviors/affectionBar.js';
+import { createEffects } from './behaviors/effects.js';
 
 const canvas = document.getElementById('pet-canvas');
 const zzzEl = document.getElementById('zzz');
@@ -87,7 +88,8 @@ window.addEventListener('keydown', (event) => {
 // ─── Loop principal ──────────────────────────────────────────────────────────
 const clock = new THREE.Clock();
 const affectionBar = createAffectionBar();
-const refs = { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar };
+const effects = createEffects();
+const refs = { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects };
 const deps = { logEvent, speak, personalityCtl };
 let rafPaused = false;
 let rafId = 0;

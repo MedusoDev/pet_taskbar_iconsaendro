@@ -7,7 +7,9 @@
 //   Zen ──(carregado bem alto e solto)──▶ Normality
 //   Zen ──(carinho contínuo por ~6s, teste)──▶ zen_much_more_excited ──▶ Excited
 //     Excited: need_you (segue o mouse) ──▶ please_pet (pede carinho)
-//       please_pet ──(carinho demais)──▶ Normality
+//       please_pet ──(carinho demais)──▶ shy (respinga, blush ///) ──▶ Normality
+//         shy ──(carinho continua na janela)──▶ shy2/much_petting (2x mais
+//           intenso) ──▶ nocaute: shutdown + z z z por ~1min ──▶ Normality
 //       please_pet ──(sem carinho)──▶ Normality
 import { normality } from '../personalities/normality.js';
 import { zen } from '../personalities/zen.js';
@@ -42,6 +44,20 @@ const HEART_MIN_MS = 1200;
 const HEART_MAX_MS = 2000;
 const PLEASE_PET_TIMEOUT_MS = 5000; // sem carinho → desiste
 const PLEASE_PET_EXCESS_MS = 3000;  // carinho acumulado dentro do please_pet → vergonha
+
+// ── Excited: saída envergonhada (carinho demais) ──
+const SHY_EXIT_MS = 4200;            // murcha tremendo antes de voltar pro Normality
+const SHY_BLUSH_EXTRA_MS = 2500;     // blush "///" ainda visível depois de sair
+const SHY_COOLDOWN_MS = 30000;       // vergonha recente → supercarga não recarrega
+const SHY_PALETTE_HOLD_MAX_MS = 8000; // rubor: cor do Excited segura enquanto o cafuné continua
+
+// ── much_petting: o carinho NÃO parou depois da vergonha ──
+// Reincide direto na sobrecarga (shy2), muito mais intensa, e termina
+// apagando: shutdown variante "nocaute" com z z z por ~1min (shutdown.js).
+const MUCH_PETTING_WINDOW_MS = 15000; // janela pós-shy pra reincidir
+const MUCH_PETTING_TRIGGER_MS = 2500; // carinho contínuo dentro da janela
+const SHY2_MS = 3500;                 // segunda vergonha, bem mais intensa
+const KNOCKOUT_COOLDOWN_MS = 120000;  // depois do nocaute: paz por 2min
 
 // O timer automático de "2min sem interação → Zen" ainda NÃO está ligado.
 // Por pedido explícito: por enquanto só entra no Zen pelo gatilho manual
@@ -134,6 +150,9 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     setTint(null);
     setPalette(excited.palette);
     state.signatureAnim = null;
+    // Viagem em andamento morreria brigando com o "seguir o mouse" por
+    // âncora — cancela pra ele engatar a perseguição limpo.
+    cancelReloc();
     state.excitedState = {
       phase: 'needYou',
       needYouUntil: now + NEED_YOU_MIN_MS + Math.random() * (NEED_YOU_MAX_MS - NEED_YOU_MIN_MS),
@@ -145,11 +164,76 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     speak('excited', true);
   }
 
+  // Carinho demais no please_pet: gotículas brancas espirram, o blush "///"
+  // acende e ele murcha tremendo (fase shy) antes de voltar pro Normality —
+  // a paleta já volta devagar sozinha (as faces perseguem as cores por lerp).
+  function startShyExit(now) {
+    const es = state.excitedState;
+    es.phase = 'shy';
+    es.shyStart = now;
+    state.pendingBurst = true; // liveAnimation dispara o respingo onde o gem está
+    state.blushUntil = now + SHY_EXIT_MS + SHY_BLUSH_EXTRA_MS;
+    state.excitedCooldownUntil = now + SHY_EXIT_MS + SHY_COOLDOWN_MS;
+    // abre a janela do much_petting: se o carinho continuar depois da
+    // vergonha, reincide muito mais intenso
+    state.shyRoundUntil = now + SHY_EXIT_MS + MUCH_PETTING_WINDOW_MS;
+    state.muchPettingMs = 0;
+    state.affection = Math.min(state.affection, 0.25); // precisa de um tempo
+    state.petCharge = 0;
+    state.signatureAnim = null;
+    logEvent('excited_shy', 'carinho demais — transbordou, morrendo de vergonha');
+    speak('please_pet_shy', true);
+  }
+
+  // much_petting round 2: nem chega a paquerar — vai direto pra sobrecarga
+  // (fase shy2), muito mais intensa, e termina apagando (startKnockout).
+  function startMuchPetting(now) {
+    state.mode = 'excited';
+    state.personality = excited;
+    setPalette(excited.palette);
+    cancelReloc();
+    state.signatureAnim = null;
+    state.shyRoundUntil = 0;
+    state.muchPettingMs = 0;
+    state.petCharge = 0;
+    state.excitedState = { phase: 'shy2', shyStart: now, secondBurstDone: false };
+    state.pendingBurst = true;
+    state.pendingBurstIntense = true;
+    state.blushUntil = now + SHY2_MS;
+    logEvent('much_petting', 'o carinho não parou — sobrecarga total!');
+    speak('much_petting', true);
+  }
+
+  // Fim do much_petting: desliga de vez e apaga dormindo — shutdown
+  // variante "nocaute" (z z z por ~1min antes de religar assustado).
+  function startKnockout(now) {
+    speak('knockout', true);
+    exitExcitedToNormality('much_petting — apagou de tanto carinho', now);
+    state.affection = 0;
+    state.shyRoundUntil = 0;
+    state.excitedCooldownUntil = now + KNOCKOUT_COOLDOWN_MS;
+    state.dragging = false; // se estava no colo, escorrega — apagou de vez
+    state.releaseFall = null;
+    // Apagado não tem rubor: a cor volta ao normal já (dormindo escuro)
+    state.paletteHoldMaxUntil = 0;
+    setPalette(normality.palette);
+    state.shutdown = { start: now, vy: 0, falling: false, bounces: 0, startled: false, knockout: true };
+    logEvent('knockout', 'apagou de tanto carinho — dormindo fundo por ~1min');
+  }
+
   function exitExcitedToNormality(reason, now) {
     state.mode = 'normality';
     state.personality = normality;
     state.excitedState = null;
-    setPalette(normality.palette);
+    // Rubor: se o cafuné ainda está rolando na hora da saída, a cor do
+    // Excited se mantém por mais alguns segundos (solta quando o carinho
+    // parar ou no teto — ver updateNormalityCharge).
+    if (state.pettingNow) {
+      state.paletteHoldMaxUntil = now + SHY_PALETTE_HOLD_MAX_MS;
+      logEvent('rubor', 'carinho continua — segurando a cor do excited');
+    } else {
+      setPalette(normality.palette);
+    }
     state.signatureAnim = null;
     logEvent('excited', `saiu do modo excited (${reason})`);
   }
@@ -170,7 +254,30 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
   // Normality → Excited: barra cheia + cafuné continuando → aura no coração
   // cresce; cheia → Excited. Parou o carinho, a aura escorre de volta.
   function updateNormalityCharge(now, delta) {
-    if (state.pettingNow && state.affection >= PET_CHARGE_FULL_AFFECTION) {
+    // Rubor: solta a cor do Excited quando o carinho parar (ou no teto)
+    if (state.paletteHoldMaxUntil) {
+      if (!state.pettingNow || now >= state.paletteHoldMaxUntil) {
+        state.paletteHoldMaxUntil = 0;
+        setPalette(normality.palette);
+        logEvent('rubor', 'passou — cor derretendo de volta ao normal');
+      }
+    }
+
+    // much_petting: saiu envergonhado mas o carinho NÃO parou → reincide
+    // (ignora o cooldown normal da supercarga — esse caminho é próprio)
+    if (now < state.shyRoundUntil) {
+      if (state.pettingNow) {
+        state.muchPettingMs += delta * 1000;
+        if (state.muchPettingMs >= MUCH_PETTING_TRIGGER_MS) {
+          startMuchPetting(now);
+          return;
+        }
+      }
+    } else {
+      state.muchPettingMs = 0;
+    }
+
+    if (state.pettingNow && state.affection >= PET_CHARGE_FULL_AFFECTION && now >= state.excitedCooldownUntil) {
       state.petCharge = Math.min(state.petCharge + delta / PET_CHARGE_FILL_SEC, 1);
       if (state.petCharge >= 1) {
         logEvent('supercarga', 'carinho transbordou — Normality → Excited');
@@ -252,6 +359,50 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     const es = state.excitedState;
     if (!es) return null;
 
+    // fase shy2 (much_petting): segunda sobrecarga, MUITO mais intensa —
+    // treme forte o tempo todo, gira alucinado, respinga duas vezes e no
+    // fim apaga de vez (nocaute)
+    if (es.phase === 'shy2') {
+      const el = now - es.shyStart;
+      const p = el / SHY2_MS;
+      if (p >= 1) {
+        startKnockout(now);
+        return null;
+      }
+      if (!es.secondBurstDone && p >= 0.55) {
+        es.secondBurstDone = true;
+        state.pendingBurst = true;
+        state.pendingBurstIntense = true;
+      }
+      const env = Math.sin(clamp(p, 0, 1) * Math.PI);
+      return {
+        z: Math.sin(el / 15) * 0.32,
+        y: Math.abs(Math.sin(el / 105)) * 0.5,
+        scale: 0.14 * env,
+        unfold: 0.5 * env,
+        spinMul: 3 + p * 4,
+      };
+    }
+
+    // fase shy: para de perseguir o mouse (ver liveAnimation.js), treme de
+    // vergonha no começo e murcha devagar até voltar pro Normality
+    if (es.phase === 'shy') {
+      const p = (now - es.shyStart) / SHY_EXIT_MS;
+      if (p >= 1) {
+        exitExcitedToNormality('vergonha — saiu devagarinho', now);
+        return null;
+      }
+      const tremor = Math.sin((now - es.shyStart) / 26) * 0.09 * Math.max(0, 1 - p * 2.2);
+      const droop = Math.min(p * 1.4, 1);
+      return {
+        z: tremor,
+        y: -0.3 * droop,
+        scale: -0.07 * droop,
+        unfold: 0.03 * (1 - p),
+        spinMul: 0.2,
+      };
+    }
+
     if (es.phase === 'needYou') {
       if (now >= es.nextHeartAt) {
         es.nextHeartAt = now + HEART_MIN_MS + Math.random() * (HEART_MAX_MS - HEART_MIN_MS);
@@ -272,8 +423,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
       es.pettingMsInPleasePet += delta * 1000;
       es.lastPetSeenAt = now;
       if (es.pettingMsInPleasePet >= PLEASE_PET_EXCESS_MS) {
-        speak('please_pet_shy', true);
-        exitExcitedToNormality('carinho demais — ficou envergonhado', now);
+        startShyExit(now);
         return null;
       }
     } else if (now - es.lastPetSeenAt >= PLEASE_PET_TIMEOUT_MS) {

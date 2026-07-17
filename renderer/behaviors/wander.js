@@ -128,9 +128,15 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
     // Decisão de mudar de poleiro (agenda irregular, estilo Poisson).
     // zen_aura é não interrompível: enquanto ativa, não começa viagem nova.
     // Recebendo cafuné também não sai andando no meio do carinho.
+    // Excited não faz viagens: ele já segue o mouse continuamente por âncora
+    // (liveAnimation.js) — uma viagem no meio faria ele "travar" e parar.
     if (state.pettingNow) {
       state.nextRelocateAt = Math.max(state.nextRelocateAt, now + 3000);
-    } else if (now >= state.nextRelocateAt && !state.stretch && !state.dizzy && !state.zenAuraActive) {
+    } else if (
+      now >= state.nextRelocateAt &&
+      state.mode !== 'excited' &&
+      !state.stretch && !state.dizzy && !state.zenAuraActive
+    ) {
       const tgt = pickWanderTarget(state, camera);
       startRelocate(state, now, tgt.x, tgt.y, 1, tgt.toCursor, logEvent);
     }

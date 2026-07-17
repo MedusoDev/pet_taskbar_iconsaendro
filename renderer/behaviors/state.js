@@ -39,6 +39,9 @@ export function createState(now, groundY) {
     petLean: 0,
     excitedHopStart: -1e9,
     nextExcitedHopAt: 0,
+    orbitAngle: 0,       // órbita de empolgação em volta do cursor parado
+    vibeStart: -1e9,     // pulso de vibração de excitação em andamento
+    nextVibeAt: 0,
 
     // drag
     dragging: false,
@@ -95,5 +98,14 @@ export function createState(now, groundY) {
     excitedState: null,
     zenAuraActive: false,
     zenBreathingActive: false,
+
+    // saída envergonhada do Excited (ver personalityState.js / effects.js)
+    pendingBurst: false,       // liveAnimation dispara o respingo no próximo frame
+    pendingBurstIntense: false, // respingo dobrado (much_petting)
+    blushUntil: 0,             // blush "///" visível até este timestamp
+    excitedCooldownUntil: 0,   // vergonha recente → supercarga não recarrega
+    shyRoundUntil: 0,          // janela pós-shy: carinho contínuo → much_petting
+    muchPettingMs: 0,          // ms de carinho acumulado dentro da janela
+    paletteHoldMaxUntil: 0,    // rubor: cor do Excited segura enquanto há cafuné
   };
 }

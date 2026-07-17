@@ -1,17 +1,30 @@
 // Evento shutdown: desliga, cai como bolinha, quica e religa assustado.
 // Tem prioridade sobre todo o resto da vida do pet enquanto está ativo.
+//
+// Variante "knockout" (much_petting): apagou de tanto carinho — desliga
+// quase na hora, cai e fica dormindo com z z z por ~1min antes de religar.
 import { damp, clamp } from './mathUtils.js';
 import { resetBoredom } from './boredom.js';
+import { GEM_RADIUS } from '../scene.js';
 
 const SHUTDOWN_DUR = 12.5;
 const SHUTDOWN_OFF_AT = 2.2;
 const SHUTDOWN_ON_AT = 8.8;
+const SHUTDOWN_RECOVERY = SHUTDOWN_DUR - SHUTDOWN_ON_AT; // religa → normal
+
+const KNOCKOUT_OFF_AT = 0.5;     // apaga quase na hora (exausto)
+const KNOCKOUT_SLEEP_SEC = 60;   // dorme apagado por 1min
 
 export function updateShutdown(state, refs, now, delta, logEvent) {
   const { gem, mesh, applyUnfold } = refs;
   const shutdown = state.shutdown;
+  const knockout = !!shutdown.knockout;
   const evT = (now - shutdown.start) / 1000;
-  const off = evT >= SHUTDOWN_OFF_AT && evT < SHUTDOWN_ON_AT;
+
+  const offAt = knockout ? KNOCKOUT_OFF_AT : SHUTDOWN_OFF_AT;
+  const onAt = knockout ? KNOCKOUT_OFF_AT + KNOCKOUT_SLEEP_SEC : SHUTDOWN_ON_AT;
+  const dur = onAt + SHUTDOWN_RECOVERY;
+  const off = evT >= offAt && evT < onAt;
 
   state.power = damp(state.power, off ? 0 : 1, 5, delta);
 
@@ -21,11 +34,11 @@ export function updateShutdown(state, refs, now, delta, logEvent) {
 
   // Facetas fecham desligada; religa com susto (0.9) e volta ao normal
   let unfoldTarget = 0.015;
-  if (evT >= SHUTDOWN_ON_AT) {
+  if (evT >= onAt) {
     if (!shutdown.startled) {
       shutdown.startled = true;
       shutdown.startleAt = now;
-      logEvent('shutdown', 'religou assustado');
+      logEvent('shutdown', knockout ? 'acordou do nocaute de carinho' : 'religou assustado');
     }
     const el = (now - shutdown.startleAt) / 1000;
     const p = clamp(el / 1.4, 0, 1);
@@ -50,7 +63,7 @@ export function updateShutdown(state, refs, now, delta, logEvent) {
         shutdown.vy = 0;
       }
     }
-  } else if (evT >= SHUTDOWN_ON_AT) {
+  } else if (evT >= onAt) {
     // Religada: flutua de volta ao lugar
     gem.position.y = damp(gem.position.y, state.groundY + 0.13, 2.2, delta);
   }
@@ -61,10 +74,27 @@ export function updateShutdown(state, refs, now, delta, logEvent) {
   gem.scale.setScalar(damp(state.scaleCur, 1, 2.2, delta));
   state.scaleCur = gem.scale.x;
 
-  if (evT >= SHUTDOWN_DUR) {
+  // Nocaute: dormindo apagado — z z z ao lado dele e blush escondido.
+  // (updateAlive não roda durante o shutdown, então a UI é cuidada aqui.)
+  if (knockout) {
+    const { zzzEl, camera, effects } = refs;
+    if (effects) effects.updateBlush(false, 0, 0);
+    const showZzz = off && evT > offAt + 1.5; // já caiu e assentou
+    zzzEl.classList.toggle('visible', showZzz);
+    if (showZzz) {
+      const xPx = ((gem.position.x / state.halfWidth) + 1) / 2 * window.innerWidth;
+      const bottomPx =
+        ((gem.position.y + GEM_RADIUS * 1.15 - camera.bottom) / (camera.top - camera.bottom)) *
+          window.innerHeight + 6;
+      zzzEl.style.left = `${xPx + 34}px`;
+      zzzEl.style.bottom = `${bottomPx}px`;
+    }
+  }
+
+  if (evT >= dur) {
     state.shutdown = null;
     state.power = 1;
     resetBoredom(state, now);
-    logEvent('shutdown', 'de volta ao normal');
+    logEvent('shutdown', knockout ? 'nocaute de carinho terminou — de volta ao normal' : 'de volta ao normal');
   }
 }

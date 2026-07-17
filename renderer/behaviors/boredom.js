@@ -44,6 +44,9 @@ export function createRegisterInput({ logEvent, speak }) {
 export function createBoredomClock({ logEvent, speak }) {
   return function updateBoredomClock(state, now, idleSec) {
     if (state.sleeping) return;
+    // Excited não tem tédio: tique/espreguiçada/shutdown/sono atrapalhariam
+    // a perseguição do mouse (ele está elétrico, não entediado).
+    if (state.mode === 'excited') return;
 
     if (idleSec >= SLEEP_AT) {
       state.sleeping = true;

@@ -108,6 +108,53 @@ export function initScene(canvas) {
     }
   }
 
+  // ── Morph de forma por personalidade ────────────────────────────────────
+  // O corpo é SEMPRE o icosaedro (a identidade dele), mas tensiona e relaxa:
+  // no Zen ele arredonda em direção a uma esfera (perde as arestas, respira);
+  // no Excited ele se eriça (algumas facetas jutam pra fora viram espinhos).
+  // Guardo dois "deltas" por vértice (esfera − ico, espinhos − ico) e um
+  // escalar contínuo shapeCur ∈ [-1, +1]: -1 = esfera (zen), 0 = ico puro
+  // (normality), +1 = espinhos (excited). Como qualquer transição passa por
+  // 0, ir de um humor pro outro nunca dá "pop" — cruza o icosaedro no meio.
+  const dSphere = new Float32Array(basePos.length); // esfera − ico, por vértice
+  const dSpiky = new Float32Array(basePos.length);  // espinhos − ico, por vértice
+  {
+    const v = new THREE.Vector3();
+    // Esfera: cada vértice puxado pro raio (arredonda a silhueta).
+    for (let i = 0; i < basePos.length; i += 3) {
+      v.set(basePos[i], basePos[i + 1], basePos[i + 2]).setLength(GEM_RADIUS);
+      dSphere[i] = (v.x - basePos[i]) * 0.9; // 0.9: arredonda sem virar bola perfeita
+      dSphere[i + 1] = (v.y - basePos[i + 1]) * 0.9;
+      dSphere[i + 2] = (v.z - basePos[i + 2]) * 0.9;
+    }
+    // Espinhos: ~60% das faces jutam pra fora ao longo da normal (amplitude
+    // irregular → eriçado, não uniforme); as outras ficam quase paradas.
+    for (let f = 0; f < faceCount; f++) {
+      const n = faceNormals[f];
+      const amp = Math.random() < 0.6 ? (0.35 + Math.random() * 0.65) * GEM_RADIUS : 0;
+      for (let vtx = 0; vtx < 3; vtx++) {
+        const idx = (f * 3 + vtx) * 3;
+        dSpiky[idx] = n.x * amp;
+        dSpiky[idx + 1] = n.y * amp;
+        dSpiky[idx + 2] = n.z * amp;
+      }
+    }
+  }
+
+  // shapeCur persegue shapeTarget (setado por setShapeMode). O avanço é feito
+  // dentro de applyUnfold (que roda todo frame), usando delta de relógio real.
+  let shapeCur = 0;
+  let shapeTarget = 0;
+  let lastShapeTime = 0;
+  const morphedBase = new Float32Array(basePos.length); // ico + morph, base do unfold
+
+  // Chamado a cada troca de humor (movement.js passa state.mode todo frame; é
+  // idempotente — só reage quando o alvo muda de verdade).
+  function setShapeMode(mode) {
+    const target = mode === 'zen' ? -1 : mode === 'excited' ? 1 : 0;
+    if (target !== shapeTarget) shapeTarget = target;
+  }
+
   // ── Cores dinâmicas ──
   // setPalette: troca as 6 cores do degradê inteiro (Face Mood + emissive) —
   // usado pela personalidade do dia. As faces derivam suavemente pras cores
@@ -164,11 +211,38 @@ export function initScene(canvas) {
   });
 
   // Desdobra as facetas: desloca os 3 vértices de cada face ao longo da
-  // normal. Só reescreve o buffer quando o valor muda de verdade (perf).
+  // normal, a partir da base morfada (ico ↔ esfera/espinhos). Só reescreve o
+  // buffer quando algo muda de verdade — disp (respiração) OU a forma.
   let lastDisp = -1;
+  let lastShape = -999;
   function applyUnfold(disp) {
-    if (Math.abs(disp - lastDisp) < 0.0006) return;
+    // Avança o morph de forma até o alvo do humor atual (delta de relógio real,
+    // já que applyUnfold não recebe delta e roda uma vez por frame).
+    const now = performance.now();
+    if (lastShapeTime) {
+      const dt = Math.min((now - lastShapeTime) / 1000, 0.05);
+      shapeCur += (shapeTarget - shapeCur) * (1 - Math.exp(-2.6 * dt));
+      if (Math.abs(shapeTarget - shapeCur) < 0.0008) shapeCur = shapeTarget;
+    }
+    lastShapeTime = now;
+
+    const shapeMoved = Math.abs(shapeCur - lastShape) >= 0.0008;
+    if (Math.abs(disp - lastDisp) < 0.0006 && !shapeMoved) return;
     lastDisp = disp;
+    lastShape = shapeCur;
+
+    // Base morfada: cruza o icosaedro no meio (shapeCur=0), então zen↔excited
+    // nunca dá pop. Negativo puxa pra esfera, positivo empurra pros espinhos.
+    const s = shapeCur;
+    if (s < 0) {
+      const k = -s;
+      for (let i = 0; i < basePos.length; i++) morphedBase[i] = basePos[i] + dSphere[i] * k;
+    } else if (s > 0) {
+      for (let i = 0; i < basePos.length; i++) morphedBase[i] = basePos[i] + dSpiky[i] * s;
+    } else {
+      morphedBase.set(basePos);
+    }
+
     const pos = gemGeo.attributes.position;
     const arr = pos.array;
     for (let f = 0; f < faceCount; f++) {
@@ -176,12 +250,16 @@ export function initScene(canvas) {
       const offset = disp * faceVariance[f] * 0.55;
       for (let v = 0; v < 3; v++) {
         const idx = (f * 3 + v) * 3;
-        arr[idx] = basePos[idx] + n.x * offset;
-        arr[idx + 1] = basePos[idx + 1] + n.y * offset;
-        arr[idx + 2] = basePos[idx + 2] + n.z * offset;
+        arr[idx] = morphedBase[idx] + n.x * offset;
+        arr[idx + 1] = morphedBase[idx + 1] + n.y * offset;
+        arr[idx + 2] = morphedBase[idx + 2] + n.z * offset;
       }
     }
     pos.needsUpdate = true;
+    // O unfold puro desliza ao longo da normal e não muda a orientação da
+    // face — mas o morph de forma muda: recalcula as normais só quando a forma
+    // está mexendo, senão a iluminação fica "presa" no icosaedro.
+    if (shapeMoved) gemGeo.computeVertexNormals();
     gemGeo.computeBoundingSphere(); // mantém o raycast (clique) correto
   }
 
@@ -262,5 +340,5 @@ export function initScene(canvas) {
     colorAttr.needsUpdate = true;
   }
 
-  return { scene, camera, renderer, gem, mesh, material, applyUnfold, updateVisuals, setTint, setPalette };
+  return { scene, camera, renderer, gem, mesh, material, applyUnfold, updateVisuals, setTint, setPalette, setShapeMode };
 }

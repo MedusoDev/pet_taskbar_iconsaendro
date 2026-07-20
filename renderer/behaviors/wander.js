@@ -112,7 +112,13 @@ export function cursorToWorldX(state, camera) {
 
 /** Sorteia um novo poleiro: na maioria das vezes um ponto aleatório, mas de
  * vez em quando (mais frequente em personalidades grudentas) ele decide ir
- * fazer companhia pro mouse — pousa perto de onde o cursor está. */
+ * fazer companhia pro mouse — pousa perto de onde o cursor está.
+ *
+ * POUSO: na maior parte das vezes o destino é o CHÃO (em cima da taskbar) —
+ * flutuar é coisa de viagem; parado, ele assenta como um bichinho de
+ * verdade. Só de vez em quando escolhe pairar mais alto. */
+const PERCH_CHANCE = 0.65; // chance do poleiro ser rente à taskbar
+
 export function pickWanderTarget(state, camera) {
   const mv = state.personality.movement;
   const limit = state.halfWidth - GEM_RADIUS - EDGE_MARGIN;
@@ -122,17 +128,19 @@ export function pickWanderTarget(state, camera) {
   const visitChance = state.mode === 'excited' ? 1 : 0.22 + 0.4 * mv.approach;
   if (cwx !== null && Math.random() < visitChance) {
     const x = cwx + (Math.random() * 2 - 1) * 1.8; // perto, mas não em cima
+    const g = groundAtX(state, x);
     return {
       x,
-      y: groundAtX(state, x) + Math.random() * WANDER_Y_RANGE * mv.yRange * 0.7,
+      y: Math.random() < PERCH_CHANCE ? g : g + 0.5 + Math.random() * WANDER_Y_RANGE * mv.yRange * 0.6,
       toCursor: true,
     };
   }
 
   const x = (Math.random() * 2 - 1) * limit;
+  const g = groundAtX(state, x);
   return {
     x,
-    y: groundAtX(state, x) + Math.random() * WANDER_Y_RANGE * mv.yRange,
+    y: Math.random() < PERCH_CHANCE ? g : g + 0.5 + Math.random() * WANDER_Y_RANGE * mv.yRange,
     toCursor: false,
   };
 }
@@ -158,10 +166,14 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
     }
   } else {
     const mv = state.personality.movement;
-    const mx = noiseX(t * 0.32, 0) * MICRO_X * mv.micro;
-    const my = noiseY(t * 0.27, 50) * MICRO_Y * mv.micro;
-    state.restX = damp(state.restX, state.anchor.x + mx, HOVER_LAMBDA, delta);
     const g = groundAtX(state, state.restX);
+    // Pousado na taskbar, a deriva vertical quase some (bichinho assentado,
+    // não bola de sabão); a horizontal também diminui um pouco. Flutuando
+    // alto, deriva normal.
+    const heightFactor = clamp((state.anchor.y - g) / 1.2, 0.15, 1);
+    const mx = noiseX(t * 0.32, 0) * MICRO_X * mv.micro * (0.55 + 0.45 * heightFactor);
+    const my = noiseY(t * 0.27, 50) * MICRO_Y * mv.micro * heightFactor;
+    state.restX = damp(state.restX, state.anchor.x + mx, HOVER_LAMBDA, delta);
     state.restY = damp(
       state.restY,
       clamp(state.anchor.y + my, g, g + WANDER_Y_RANGE + 0.5),
@@ -177,7 +189,9 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
     // Assinatura tocando ou pergunta de estacionar aberta: espera terminar —
     // viajar no meio comporia a pose com o banking do voo (ou levaria o
     // balão passeando pela tela).
-    if (state.pettingNow) {
+    // Chat/pergunta abertos: fica quietinho conversando — viajar levaria o
+    // painel (e o teclado do usuário) passeando pela tela.
+    if (state.pettingNow || state.chatOpen || state.askingQuestion) {
       state.nextRelocateAt = Math.max(state.nextRelocateAt, now + 3000);
     } else if (
       now >= state.nextRelocateAt &&

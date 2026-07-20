@@ -74,5 +74,36 @@ export const zen = {
     zen_aura: ['Quase virei um ser vivo...', 'Quase eu toquei o user no físico...'],
     // zen_much_more_excited: carinho contínuo demais durante o zen_breathing
     zen_annoyed: ['Você está atrapalhando minha concentração...', 'Para... eu preciso ficar quieto...', 'Isso não é hora de carinho!'],
+
+    // Ico_Eye com a voz do Zen
+    site_nsfw: [
+      'Hmm. Desejo também é energia... só canaliza direito.',
+      'Eu medito, você... faz o seu tipo de meditação. Sem julgamentos.',
+      '*respira fundo* Não vou comentar. Não vou. ...tá, é difícil.',
+    ],
+    site_ai: [
+      'Outra IA... tudo bem. O universo é grande o bastante pra nós duas.',
+      'Converse com ela. Eu fico aqui, presente, como sempre estive.',
+    ],
+
+    // Ico_Guard com a voz do Zen
+    sys_ram_high: [
+      'Sua memória está pesada... como uma mente cheia. Solta umas abas.',
+      'RAM alta. Respira, fecha o que não serve, segue leve.',
+    ],
+    sys_cpu_high: [
+      'O processador está agitado... ele também precisava de um zen.',
+      'Muita energia gasta aí... o que realmente precisa rodar agora?',
+    ],
+    sys_battery_low: [
+      'A energia se esvai... conecta a fonte, renova o fluxo.',
+      'Bateria baixa. Até a paz precisa de tomada.',
+    ],
+
+    // Flerte espontâneo (o Zen flerta... serenamente)
+    flirt1: ['Sua presença é agradável. Só isso. Por enquanto.', 'Gosto de quando você está por perto. O ar muda.'],
+    flirt2: ['Meditei sobre você hoje. Duas vezes.', 'Você é meu pensamento intrusivo favorito.'],
+    flirt3: ['Até no vazio da mente, você aparece. Curioso, não?', 'Respira comigo... mais perto. Mais... perto.'],
+    flirt4: ['Encontrei a paz. Ela tem o formato do seu cafuné.', 'Nirvana é você por perto e o cursor devagar.'],
   },
 };

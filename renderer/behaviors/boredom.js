@@ -54,10 +54,14 @@ export function createBoredomClock({ logEvent, speak, personalityCtl }) {
     // entediado) e no Zen a meditação tem os próprios timers — sono/shutdown
     // no meio da respiração deixariam dois sistemas de pose brigando.
     if (state.mode !== 'normality') return;
-    // No colo, caindo ou com a pergunta de estacionar aberta também não:
-    // "segurar parado" não é tédio, e shutdown/sono no meio do drag faria o
-    // gem despencar da mão do usuário (ou dormir com o balão aberto).
-    if (state.dragging || state.releaseFall || state.awaitingParkAnswer) return;
+    // No colo, caindo, com pergunta aberta (estacionar/curiosidade) ou no
+    // meio de uma conversa (chat) também não: "segurar parado" não é tédio,
+    // e shutdown/sono no meio do drag faria o gem despencar da mão do
+    // usuário (ou dormir com o balão/painel aberto).
+    if (
+      state.dragging || state.releaseFall || state.awaitingParkAnswer ||
+      state.chatOpen || state.askingQuestion
+    ) return;
     // Corpo ocupado (tique, espreguiçada, tonta ou viagem em andamento):
     // toda transição de idle espera a animação atual terminar — cortar no
     // meio dava pop de pose, e dormir/desligar no meio de uma viagem deixava

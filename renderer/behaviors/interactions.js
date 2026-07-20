@@ -6,7 +6,7 @@ import { GEM_RADIUS } from '../scene.js';
 import { EDGE_MARGIN, scheduleNextRelocate, groundAtX } from './wander.js';
 import { clamp } from './mathUtils.js';
 
-export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput, prompt }) {
+export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput, prompt, chat }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
 
@@ -147,12 +147,29 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
       }
     }
 
-    // Cursor sobre o balão de pergunta também segura os eventos (senão o
-    // click-through engole o clique no botão)
+    // Cursor sobre o balão de pergunta ou o painel de chat também segura os
+    // eventos (senão o click-through engole cliques e digitação)
     const overPrompt = prompt && prompt.isPointOver(event.clientX, event.clientY);
-    const shouldIgnore = !overPet && !overPrompt;
+    const overChat = chat && chat.isPointOver(event.clientX, event.clientY);
+    const shouldIgnore = !overPet && !overPrompt && !overChat;
+
+    // Pergunta da curiosidade: o foco de teclado só é capturado quando o
+    // usuário DELIBERADAMENTE passa o mouse na pergunta (e aí fica preso
+    // até ela fechar, pra digitação não morrer se o mouse escapar).
+    if (overPrompt && state.askingQuestion && !state.promptEngaged) {
+      state.promptEngaged = true;
+      if (window.petAPI) window.petAPI.setIgnoreMouseEvents(false, true);
+      state.ignoringMouseEvents = false;
+      return;
+    }
+
     if (shouldIgnore !== state.ignoringMouseEvents && window.petAPI) {
-      window.petAPI.setIgnoreMouseEvents(shouldIgnore);
+      // chat/pergunta engajada: o click-through volta, mas o foco de teclado
+      // fica (senão a digitação morre quando o mouse sai) — ver main.js
+      window.petAPI.setIgnoreMouseEvents(
+        shouldIgnore,
+        state.chatOpen || (state.askingQuestion && state.promptEngaged)
+      );
       state.ignoringMouseEvents = shouldIgnore;
     }
   });
@@ -181,6 +198,20 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
     }
     state.releaseFall = { vy: 0, bounces: 0 };
     logEvent('soltou', 'caindo...');
+  });
+
+  // Cutucão adiado ~260ms: se um DUPLO-clique chegar nesse meio tempo, o
+  // cutucão é cancelado e só o chat abre — antes o pet girava de cutucão
+  // duas vezes E abria o chat ao mesmo tempo (conflito feio de animação).
+  let pokeTimer = null;
+
+  // Duplo-clique no pet: abre/fecha o painel de conversa (AI_Chat)
+  window.addEventListener('dblclick', (event) => {
+    if (!chat) return;
+    if (!isPointerOverPet(event) || state.shutdown || state.zenAuraActive) return;
+    clearTimeout(pokeTimer);
+    registerInput(state, performance.now());
+    chat.toggle();
   });
 
   window.addEventListener('click', (event) => {
@@ -217,23 +248,29 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
     // carregar bem alto e soltar (drag segue funcionando).
     if (state.mode === 'zen') return;
 
-    // Cutucão: giro de peão + facetas abrem
-    state.pokeVel += 8;
-    state.unfold = Math.max(state.unfold, 0.8);
-
-    // 3+ cliques em 2.5s → fica tonta
+    // 3+ cliques em 2.5s → tonta na hora (não espera o timer do cutucão)
     const now = performance.now();
     state.clickTimes.push(now);
     state.clickTimes = state.clickTimes.filter((c) => now - c < 2500);
     if (state.clickTimes.length >= 3 && !state.dizzy) {
+      clearTimeout(pokeTimer);
       state.dizzy = { start: now };
       state.clickTimes = [];
+      state.pokeVel += 8;
+      state.unfold = Math.max(state.unfold, 0.8);
       logEvent('tonto', '3+ cliques seguidos');
       speak('dizzy');
-    } else {
+      return;
+    }
+
+    // Cutucão: giro de peão + facetas abrem (adiado — ver pokeTimer acima)
+    clearTimeout(pokeTimer);
+    pokeTimer = setTimeout(() => {
+      state.pokeVel += 8;
+      state.unfold = Math.max(state.unfold, 0.8);
       logEvent('cutucado');
       speak('poke');
-    }
+    }, 260);
   });
 
   return { isPointerOverPet, pointerToWorld };

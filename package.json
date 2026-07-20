@@ -1,17 +1,48 @@
 {
   "name": "pet-taskbar-icosaendro",
-  "version": "1.0.0",
-  "description": "Pet de desktop 3D (icosaedro) que anda sobre a taskbar do Windows",
+  "version": "2.0.0",
+  "description": "Icozinho — pet de desktop 3D com alma: conversa (Claude API ou cérebro local), vínculo persistente, flerte, monitor de sistema e olho no navegador",
   "main": "main.js",
   "private": true,
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder --win portable",
+    "dist:dir": "electron-builder --win dir"
   },
   "devDependencies": {
-    "electron": "^43.1.1"
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.3",
     "active-win": "^8.2.1",
     "three": "^0.169.0"
+  },
+  "build": {
+    "appId": "com.medusodev.icozinho",
+    "productName": "Icozinho",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "!**/*.log",
+      "!Icosaendro3D.tsx",
+      "!IcosaGem.tsx",
+      "!IdleEvents.tsx"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "Icozinho-${version}.exe"
+    }
   }
 }

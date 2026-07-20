@@ -23,6 +23,16 @@ const FLINCH_COOLDOWN = 5000; // ms entre sustos
 const noiseMod = createNoise2D(3); // modula spin/bob/respiração/tilt (mata os metrônomos)
 const n01 = (v) => (v + 1) / 2;    // ruído [-1,1] → [0,1]
 
+// Heartbeat do Excited: "tum-tum" duplo por ciclo (~0.86s), como coração de
+// verdade — vira um pulso de escala enquanto ele persegue o mouse.
+const HEARTBEAT_PERIOD_MS = 860;
+function heartbeatPulse(now) {
+  const bt = (now % HEARTBEAT_PERIOD_MS) / HEARTBEAT_PERIOD_MS;
+  const lub = Math.exp(-Math.pow((bt - 0.1) / 0.055, 2));
+  const dub = Math.exp(-Math.pow((bt - 0.38) / 0.07, 2)) * 0.55;
+  return lub + dub;
+}
+
 /** Posição do gem em pixels da tela (a janela ocupa a largura toda, embaixo). */
 function gemScreenX(state, camera, gem) {
   return ((gem.position.x / state.halfWidth) + 1) / 2 * window.innerWidth;
@@ -89,10 +99,12 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   if (!state.pettingNow) state.affection = Math.max(0, state.affection - delta * 0.035);
   state.petLean = damp(state.petLean, state.pettingNow ? 1 : 0, 3, delta);
 
-  // Pulinhos tentando alcançar o cursor (só empolgado, pairando)
+  // Pulinhos tentando alcançar o cursor (só empolgado, pairando).
+  // Durante a shimmy (assinatura) o pulinho NÃO agenda — as duas escritas
+  // no Y somadas viravam um salto duplo esquisito.
   let hopY = 0;
   if (excitedChasing && !state.sleeping) {
-    if (!state.reloc && now >= state.nextExcitedHopAt) {
+    if (!state.reloc && !state.signatureAnim && now >= state.nextExcitedHopAt) {
       state.excitedHopStart = now;
       state.nextExcitedHopAt = now + 1100 + Math.random() * 1300;
     }
@@ -113,6 +125,39 @@ export function updateAlive(state, refs, deps, now, delta, t) {
       vibeZ = Math.sin((now - state.vibeStart) / 9) * 0.07 * env;
       vibeY = Math.sin((now - state.vibeStart) / 7) * 0.045 * env;
     }
+  }
+
+  // Heartbeat: o corpo pulsa "tum-tum" enquanto persegue o mouse
+  const heartbeatScale = excitedChasing && !state.sleeping ? heartbeatPulse(now) * 0.042 : 0;
+
+  // Glow do canvas acompanha o humor (CSS em index.html)
+  if (refs.canvasEl) refs.canvasEl.classList.toggle('excited-glow', isExcited);
+
+  // Coraçõezinhos flutuando: fluxo vivo nas fases de paquera, gotejar lento
+  // no afterglow (derretido)
+  const afterglow = isExcited && state.excitedState && state.excitedState.phase === 'afterglow';
+  const heartsPhase =
+    isExcited && state.excitedState && ['needYou', 'pleasePet'].includes(state.excitedState.phase);
+  if (effects && (heartsPhase || afterglow) && !state.sleeping && now >= state.nextHeartFxAt) {
+    state.nextHeartFxAt = now + (afterglow ? 2400 + Math.random() * 1800 : 1100 + Math.random() * 1500);
+    const gemXPxFx = gemScreenX(state, camera, gem);
+    const gemBottomPxFx =
+      ((gem.position.y - camera.bottom) / (camera.top - camera.bottom)) * window.innerHeight;
+    effects.floatHearts(gemXPxFx, gemBottomPxFx, afterglow ? 1 : 1 + Math.floor(Math.random() * 2));
+  }
+
+  // Flerte espontâneo: com vínculo (state.bondLevel, ver movement.js), de
+  // tempos em tempos ele puxa assunto sozinho — mais íntimo a cada nível.
+  // Só no Normality: no Zen quebra a meditação, no Excited ele JÁ está
+  // falando pelos cotovelos (need_you/please_pet) — menos conflito de balão.
+  if (
+    state.mode === 'normality' &&
+    !state.sleeping && !state.dragging && !state.chatOpen && !state.askingQuestion &&
+    (state.bondLevel || 0) >= 1 &&
+    now >= (state.nextFlirtAt || 0)
+  ) {
+    state.nextFlirtAt = now + 120000 + Math.random() * 150000;
+    speak(`flirt${Math.min(state.bondLevel, 4)}`);
   }
 
   // ── Rotação base (velocidade vagando por ruído — nunca metrônomo) ──
@@ -359,7 +404,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     ? 0.92 // levemente encolhido ao ser segurado
     : state.sleeping
     ? 1 + Math.sin(t * 1.3) * 0.012
-    : 1 + stretchScale + takeoffJuice - landJuice + sigScale + state.petLean * 0.025;
+    : 1 + stretchScale + takeoffJuice - landJuice + sigScale + state.petLean * 0.025 + heartbeatScale;
   state.scaleCur = damp(state.scaleCur, scaleTarget, 2.2, delta);
   gem.scale.setScalar(state.scaleCur);
 
@@ -420,6 +465,11 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   // ── Balão de pergunta (estacionar/liberar) acompanha o gem ──
   if (prompt && prompt.visible) {
     prompt.updatePosition(gemScreenX(state, camera, gem), uiBottomPx + 14);
+  }
+
+  // ── Painel de chat acompanha o gem ──
+  if (refs.chat && refs.chat.visible) {
+    refs.chat.updatePosition(gemScreenX(state, camera, gem), uiBottomPx + 14);
   }
 
   // ── Vergonha: respingo pendente + blush "///" grudado no corpo ──

@@ -1,13 +1,9 @@
 
-[pet] janela: pedido 3286x480 @ (0,540) | real {"x":0,"y":540,"width":3286,"height":480} | monitores: 2
-23:21:45 [pet] personalidade — Tranquilo (paleta #38BDF8…)
-23:21:45 [pet] shutdown — o bixinho puxou a alavanca...
-23:21:54 [pet] shutdown — religou assustado
-23:21:58 [pet] shutdown — de volta ao normal
-23:21:58 [pet] carinho — recebendo cafuné
-23:21:58 [pet] fala — "Hmm, carinho bom esse." (gatilho: petting)
-23:22:00 [pet] colo — pegou ele no colo
-23:22:02 [pet] soltou — caindo...
-23:22:04 [pet] pousou — em x=-31.8
-23:22:05 [pet] assinatura — Zen Float (meditação)
-23:22:12 [pet] viagem — de x=-31.7 pra x=-45.6
+[pet] janela: pedido 3286x732 @ (0,288) | real {"x":0,"y":288,"width":3286,"height":732} | monitores: 2 | IA: cérebro local (sem apiKey)
+11:53:52 [pet] personalidade — Normality (paleta #7C3AED…)
+11:53:53 [pet] chat — IA off — cérebro local no comando
+11:53:55 [pet] saudação — "Oi! Eu sou o seu novo... hmm, o que eu sou? Me faz um cafuné que a gente descobre junto 💜"
+11:54:01 [pet] viagem — de x=-0.1 pra x=-10.9
+11:54:04 [pet] Ico_Eye — viu vscode
+11:54:04 [pet] Ico_Eye — "Escreve um teste vai... por mim?"
+11:54:06 [pet] Ico_Eye — saiu da categoria

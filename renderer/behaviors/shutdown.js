@@ -86,6 +86,11 @@ export function updateShutdown(state, refs, now, delta, logEvent) {
       window.innerHeight + 6;
   speechEl.style.left = `${xPx}px`;
   speechEl.style.bottom = `${bottomPx + 14}px`;
+
+  // Desligado ele não fala: as "últimas palavras" (fala do nocaute) ficam
+  // ~1s no ar e o balão apaga junto com ele — novas falas já são bloqueadas
+  // pelo canSpeak do speech.js enquanto o shutdown durar.
+  if (off && evT > offAt + 1.2) speechEl.classList.remove('visible');
   siteIconEl.style.left = `${xPx}px`;
   siteIconEl.style.bottom = `${bottomPx + 10}px`;
   if (affectionBar) affectionBar.update(state, xPx, bottomPx);

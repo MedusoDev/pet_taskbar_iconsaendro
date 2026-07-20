@@ -1,8 +1,14 @@
-# Catálogo de animações e comportamentos — v1.2
+# Catálogo de animações e comportamentos — v2.0
 
 Referência de tudo que o pet faz e como funciona. Nomes são identificadores
 de conversa/código, não strings visíveis. Fonte da verdade: o código em
 `renderer/` — este arquivo é o mapa.
+
+> **Novidades da v2.0** (detalhes em "Sistemas de alma" no fim do arquivo):
+> AI_Chat (conversa com cérebro local ou Claude API), AI_Bond (vínculo
+> persistente com níveis e flerte), Ico_Eye 2.0 (16 categorias, ciúmes de IA,
+> arousal por conteúdo adulto), Ico_Guard (RAM/CPU/bateria), Excited 2.0
+> (heartbeat, corações, glow pulsante, shimmy em 3 tempos, afterglow).
 
 ## Arquitetura rápida
 
@@ -178,4 +184,107 @@ cooldowns de vergonha/nocaute.
 
 ---
 
-*Gerado a partir do estado do código em `renderer/` na v1.2.*
+## Sistemas de alma (v2.0)
+
+### AI_Chat (`chat.js` + `brain.js` + `main.js`)
+
+| Nome | Gatilho | O que faz |
+|---|---|---|
+| **Chat Panel** | duplo-clique no gem | painel de conversa acompanha o gem; enquanto aberto o pet não viaja nem dorme, e o foco de teclado é mantido mesmo com o mouse fora do painel (`keepFocus` no IPC) |
+| **Local Brain** | mensagem sem chave de API (ou API falhou) | intents PT-BR por regex: saudação, "como tá o pc", flerte, spicy (escala com vínculo), piadas, consolo, insulto, nome do usuário, vínculo, ajuda, horas, tchau + fallbacks charmosos por nível |
+| **Claude Chat** | mensagem com `pet.config.json`/`ANTHROPIC_API_KEY` | main.js chama a API com a persona do pet + contexto vivo (humor, vínculo, site ativo, RAM/CPU, hora) e histórico curto; resposta vai pro painel E pro balão de fala |
+
+### AI_Bond (`bond.js`)
+
+| Nome | Gatilho | O que faz |
+|---|---|---|
+| **Bond Points** | cafuné contínuo (+1.5/6s), conversa (+1–4), nocaute de amor (+5) | persistido em localStorage, com teto diário de 90 pts |
+| **Bond Levels** | 0/60/180/420/900 pts | Desconhecidos → Colegas → Amigos → Crush → Almas Gêmeas; level-up = faíscas + anel + corações + fala |
+| **Spontaneous Flirt** | nível ≥1, a cada ~2–4.5min acordado | fala `flirt1..4` do banco da personalidade ativa — mais íntima a cada nível |
+| **Session Greeting** | ~2.6s depois de abrir o app | saudação por hora do dia + tempo de ausência (primeira vez / <30min / >24h / >72h / madrugada) |
+
+### Ico_Eye 2.0 (`siteEye.js`)
+
+16 categorias (NSFW, IA, YouTube, streaming, Spotify, GitHub, docs, VS Code,
+e-mail, social, X, mensagens, compras, games, estudos, notícias) sobre
+qualquer navegador popular + Spotify/Discord/VS Code/Steam. Banco da
+personalidade (`site_<id>`) tem prioridade; senão linhas genéricas da
+categoria. `state.siteInfo` alimenta o contexto do chat.
+
+| Nome | Gatilho | O que faz |
+|---|---|---|
+| **AI Jealousy** | categoria `ai` (ChatGPT & cia) | falas de ciúmes + girada seca de indignação |
+| **NSFW Arousal** | categoria `nsfw` ativa | blush imediato + `state.petCharge` enche sozinho (~35s de exposição) → entra no **Excited** com falas próprias (`excited_nsfw`); respeita os cooldowns de vergonha |
+
+### Ico_Guard (`sysMonitor.js` + `main.js`)
+
+| Nome | Gatilho | O que faz |
+|---|---|---|
+| **RAM Warn** | uso ≥88% (cooldown 10min) | aviso na voz da personalidade + pulinho de alerta |
+| **CPU Warn** | ≥85% por 3 amostras (15s) | idem |
+| **Battery Warn** | ≤20% descarregando (cooldown 10min) | idem |
+| **Uptime Nag** | 7+ dias ligado (1x/sessão) | sugestão de reiniciar |
+| **Status Report** | chat: "ram"/"status"/"como tá o pc" | RAM/CPU/uptime/bateria + recomendação |
+
+### AI_Curiosity + AI_Memory (`curiosity.js` + `petMemory.js`)
+
+| Nome | Gatilho | O que faz |
+|---|---|---|
+| **Ask** | a cada ~9–16min, acordado, Normality, usuário ativo (<45s), sem chat/pergunta aberta | balão com CAMPO DE TEXTO (prompt.ask): pergunta geral, do site ativo (>20s na categoria) ou NSFW (prioridade; vínculo ≥1/2) — só perguntas ainda não respondidas |
+| **Remember** | usuário respondeu | resposta → localStorage (`ico_memory_v1`), +3 de vínculo, corações, agradecimento com a resposta na frase |
+| **Recall** | chat/cérebro | brain menciona memórias de volta (fallback 30%, "o que você sabe sobre mim"); chat com IA recebe as 5 mais recentes no contexto |
+
+### Lorebook (`lorebook.js`)
+
+Banco grande de intenções locais (sem API): saudações por hora, gostos do
+pet, existencial, apoio/conselho, vida do usuário (trabalho, fome, futebol,
+pet de verdade...), diversão (segredo, história, cantada) e spicy —
+`byLevel` escala a resposta com o vínculo, `minLevel`+`locked` trava as mais
+atrevidas até o nível certo. brain.js consulta depois dos intents dinâmicos.
+
+### Fila de falas (`speech.js`)
+
+Uma fala nunca atropela a outra: toda fala segura o balão por um tempo
+mínimo de leitura (~2.6s). `speak.text` (chat, avisos, curiosidade, vínculo)
+que chegar nesse meio tempo entra numa fila curta (2) e aparece em seguida;
+`speak(banco)` (falas ambientes) é simplesmente descartada — sempre volta a
+acontecer. A fila é limpa se o pet apagar no meio.
+
+### Pouso na taskbar (`wander.js`)
+
+Parado é POUSADO: 65% dos poleiros sorteados são rente ao chão (em cima da
+taskbar), e assentado a micro-deriva vertical quase some (bichinho, não bola
+de sabão). Flutuar alto virou o caso raro — e as viagens continuam voando.
+
+### Regras de silêncio (anti-conflito de fala)
+
+- **Shutdown/nocaute**: `canSpeak` do speech.js bloqueia TODA fala (banco e
+  texto livre); o balão apaga ~1.2s depois do desligamento; level-up que
+  acontecer apagado/dormindo fica pendente e celebra ao religar.
+- **Dormindo**: siteEye não reage (nem blush/giro), sysMonitor não avisa,
+  flerte/curiosidade não disparam.
+- **Avisos de sistema**: só no Normality, acordado, sem chat aberto — e sem
+  consumir o cooldown quando adiados.
+- **Flerte espontâneo**: só no Normality (no Excited ele já fala demais).
+- **Cutucão vs duplo-clique**: o poke espera 260ms; o dblclick cancela o
+  poke pendente (nada de girar 2x + abrir chat junto). Tonta (3+ cliques)
+  continua imediata.
+- **Hop do Excited** não agenda durante a shimmy (Y duplo).
+- **Foco de janela**: hover NÃO foca mais a janela (era isso que piscava o
+  ícone do Electron na taskbar) — foco só com chat/pergunta abertos
+  (keepFocus), com `setSkipTaskbar(true)` re-aplicado a cada troca.
+
+### Excited 2.0 (`personalityState.js` + `liveAnimation.js` + `effects.js`)
+
+| Nome | Gatilho | O que faz |
+|---|---|---|
+| **Heartbeat** | fases de perseguição (need_you/please_pet/rush) | pulso de escala "tum-tum" duplo (~0.86s/ciclo), como coração |
+| **Heart Stream** | need_you/please_pet | corações DOM flutuando (1–2 a cada 1.1–2.6s), sobem balançando |
+| **Excited Glow** | modo Excited inteiro | drop-shadow do canvas esquenta pra rosa e pulsa no ritmo do heartbeat (CSS `excited-glow`) |
+| **Shimmy 2.0** | assinatura | 3 tempos: antecipação (agacha) → requebra acelerando → pulinho-vinheta com giro |
+| **Afterglow** | fim da fase rush (chegou no mouse) | 8s derretido: balanço lento, meio afundado, giro quase nulo, corações lentos, falas desconexas (`afterglow`) — e só então volta ao Normality |
+| **Flash Ring** | qualquer `burstLiquid` | anel de onda branco/rosa expande do epicentro do respingo |
+
+---
+
+*Gerado a partir do estado do código em `renderer/` na v2.0.*

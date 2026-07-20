@@ -1,18 +1,65 @@
-// AI_Live: balão de fala. Sorteia uma linha do banco da personalidade ativa
-// pro gatilho pedido, respeitando um cooldown mínimo entre falas.
+// AI_Live: balão de fala com FILA — uma fala nunca atropela a outra.
+// Toda fala tem um tempo mínimo de leitura na tela; o que chegar nesse meio
+// tempo espera na fila (texto livre/importante) ou é descartado (falas
+// ambientes de banco, que sempre voltam a acontecer). speak.text entra na
+// fila; speak(banco) só fala com o balão livre.
 
-const SPEECH_COOLDOWN = 6000; // ms mínimo entre falas
-const SPEECH_DURATION = 3500; // ms visível na tela
+const SPEECH_COOLDOWN = 6000;  // ms mínimo entre falas de banco
+const SPEECH_DURATION = 3500;  // ms visível na tela (falas curtas de banco)
+const MIN_READ_MS = 2600;      // uma fala segura o balão pelo menos isso
+const QUEUE_GAP_MS = 400;      // respiro entre uma fala e a próxima da fila
+const QUEUE_MAX = 2;           // fila curta: mais que isso vira ruído
 // force fura o cooldown normal, mas ainda respeita um vão mínimo — senão em
 // cadeias de eventos (vergonha → respingo → rubor) uma fala atropela a outra
 // antes de dar tempo de ler.
 const FORCE_MIN_GAP = 1500;
 
-export function createSpeech({ speechEl, logEvent, getPersonality }) {
+export function createSpeech({ speechEl, logEvent, getPersonality, canSpeak }) {
   let lastSpeakAt = 0;
-  let speechHideTimer = null;
+  let holdUntil = 0;      // até quando a fala atual não pode ser substituída
+  let hideTimer = null;
+  let queue = [];         // [{ text, tag }]
 
-  return function speak(triggerKey, force = false) {
+  function show(line, durationMs) {
+    speechEl.textContent = line;
+    speechEl.classList.add('visible');
+    holdUntil = performance.now() + Math.min(durationMs, MIN_READ_MS);
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      speechEl.classList.remove('visible');
+      drainQueue();
+    }, durationMs);
+  }
+
+  function durationFor(text) {
+    return Math.min(12000, Math.max(3500, 1800 + text.length * 55));
+  }
+
+  function drainQueue() {
+    const next = queue.shift();
+    if (!next) return;
+    setTimeout(() => {
+      // O mundo pode ter mudado no meio tempo (apagou/caiu): rechecar
+      if (canSpeak && !canSpeak()) {
+        queue = [];
+        return;
+      }
+      lastSpeakAt = performance.now();
+      logEvent(next.tag, `"${next.text}" (da fila)`);
+      show(next.text, durationFor(next.text));
+    }, QUEUE_GAP_MS);
+  }
+
+  function busy() {
+    return performance.now() < holdUntil;
+  }
+
+  function speak(triggerKey, force = false) {
+    // Apagado/caindo (shutdown/nocaute) ele NÃO fala — qualquer evento
+    // assíncrono (site mudou, RAM alta, level-up) espera ele religar.
+    if (canSpeak && !canSpeak()) return;
+    // Balão ocupado: fala ambiente é descartada (sempre volta a acontecer)
+    if (busy()) return;
     const now = performance.now();
     if (now - lastSpeakAt < (force ? FORCE_MIN_GAP : SPEECH_COOLDOWN)) return;
 
@@ -28,12 +75,32 @@ export function createSpeech({ speechEl, logEvent, getPersonality }) {
     lastSpeakAt = now;
     const line = lines[Math.floor(Math.random() * lines.length)];
     logEvent('fala', `"${line}" (gatilho: ${triggerKey})`);
-    speechEl.textContent = line;
-    speechEl.classList.add('visible');
+    show(line, SPEECH_DURATION);
+  }
 
-    clearTimeout(speechHideTimer);
-    speechHideTimer = setTimeout(() => {
-      speechEl.classList.remove('visible');
-    }, SPEECH_DURATION);
+  /** Texto importante (chat, avisos, curiosidade, vínculo): se o balão está
+   * ocupado, entra na FILA e aparece assim que a fala atual terminar — nunca
+   * atropela, nunca se perde (até o limite da fila). */
+  speak.text = function speakText(text, tag = 'fala_livre') {
+    if (!text) return;
+    if (canSpeak && !canSpeak()) return;
+    if (busy()) {
+      if (queue.length >= QUEUE_MAX) queue.shift(); // derruba a mais antiga
+      queue.push({ text, tag });
+      return;
+    }
+    lastSpeakAt = performance.now();
+    logEvent(tag, `"${text}"`);
+    show(text, durationFor(text));
   };
+
+  /** Corta a fala atual e a fila na hora (o pet apagou/caiu). */
+  speak.hide = function hideSpeech() {
+    clearTimeout(hideTimer);
+    queue = [];
+    holdUntil = 0;
+    speechEl.classList.remove('visible');
+  };
+
+  return speak;
 }

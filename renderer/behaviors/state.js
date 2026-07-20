@@ -114,6 +114,17 @@ export function createState(now, groundY) {
     zenAuraActive: false,
     zenBreathingActive: false,
 
+    // AI_Chat / AI_Bond / Ico_Guard (ver chat.js, bond.js, sysMonitor.js)
+    chatOpen: false,           // painel de conversa aberto (pausa passeio/tédio)
+    askingQuestion: false,     // pergunta da curiosidade aberta (curiosity.js)
+    promptEngaged: false,      // usuário engajou na pergunta (foco preso até fechar)
+    siteInfo: null,            // { id, label } — o que o Ico_Eye vê (contexto do chat)
+    nsfwActive: false,         // site adulto ativo → arousal (personalityState)
+    sysStats: null,            // RAM/CPU/uptime do main.js (sysMonitor)
+    bondLevel: 0,              // nível de vínculo em cache (movement sincroniza)
+    nextHeartFxAt: 0,          // próximo coração flutuante do Excited
+    nextFlirtAt: now + 90000,  // próximo flerte espontâneo
+
     // saída envergonhada do Excited (ver personalityState.js / effects.js)
     pendingBurst: false,       // liveAnimation dispara o respingo no próximo frame
     pendingBurstIntense: false, // respingo dobrado (much_petting)

@@ -1,1 +1,7 @@
 node_modules/
+dist/
+
+# Configuração local do pet (chave da API do Claude, nome, etc.) — NUNCA comitar
+pet.config.json
+elec_out.log
+elec_err.log

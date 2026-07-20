@@ -42,6 +42,15 @@ const PET_CHARGE_FULL_AFFECTION = 1.0; // barra "100%"
 const PET_CHARGE_FILL_SEC = 4;         // s de cafuné contínuo pra encher a aura
 const PET_CHARGE_DRAIN_SEC = 2;        // s pra aura esvaziar quando para
 
+// ── Ico_Eye → Excited: arousal por conteúdo adulto no navegador ──
+// Com um site NSFW ativo (state.nsfwActive, ver siteEye.js), a mesma aura
+// de supercarga enche devagarinho sozinha — o pet tenta disfarçar, não
+// consegue, e depois de ~35s de exposição contínua ele "liga" sozinho.
+const NSFW_CHARGE_FILL_SEC = 35;
+
+// ── Afterglow: os segundos derretidos depois do alívio (fase rush) ──
+const AFTERGLOW_MS = 8000;
+
 // ── Excited: need_you → please_pet ──
 const NEED_YOU_MIN_MS = 8000;
 const NEED_YOU_MAX_MS = 13000;
@@ -160,7 +169,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
 
   // ── Zen → Excited ──
 
-  function enterExcited(now) {
+  function enterExcited(now, source = 'petting') {
     state.mode = 'excited';
     state.petCharge = 0;
     state.personality = excited;
@@ -190,9 +199,24 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
         lastPetSeenAt: 0,
         pettingMsInPleasePet: 0,
       };
-      logEvent('excited', 'explodiu — modo Excited ativado!');
-      speak('excited', true);
+      if (source === 'nsfw') {
+        state.blushUntil = now + 8000;
+        logEvent('excited', 'o navegador venceu — modo Excited ativado pelo Ico_Eye!');
+        speak('excited_nsfw', true);
+      } else {
+        logEvent('excited', 'explodiu — modo Excited ativado!');
+        speak('excited', true);
+      }
     }
+  }
+
+  // Afterglow: em vez de voltar seco pro Normality depois do alívio, o pet
+  // fica uns segundos derretido — flutuação lenta, giro preguiçoso, falas
+  // desconexas — e SÓ ENTÃO volta ao normal.
+  function startAfterglow(now) {
+    state.excitedState = { phase: 'afterglow', afterglowStart: now, nextLineAt: now + 1500 };
+    state.blushUntil = now + AFTERGLOW_MS + 2000;
+    logEvent('afterglow', 'derretido... voltando ao normal devagarinho');
   }
 
   // Carinho demais no please_pet: gotículas brancas espirram, o blush "///"
@@ -314,6 +338,14 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
         logEvent('supercarga', 'carinho transbordou — Normality → Excited');
         enterExcited(now);
       }
+    } else if (state.nsfwActive && !state.dragging && now >= state.excitedCooldownUntil) {
+      // Ico_Eye: conteúdo adulto no navegador — a aura enche devagarinho
+      // sozinha enquanto ele "finge que não viu"
+      state.petCharge = Math.min(state.petCharge + delta / NSFW_CHARGE_FILL_SEC, 1);
+      if (state.petCharge >= 1) {
+        logEvent('arousal', 'exposição demais — Normality → Excited (culpa do navegador)');
+        enterExcited(now, 'nsfw');
+      }
     } else {
       state.petCharge = Math.max(0, state.petCharge - delta / PET_CHARGE_DRAIN_SEC);
     }
@@ -429,18 +461,44 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     }
 
     // fase rush: liberado do estacionamento — persegue o mouse com a barra
-    // cheia; chegou perto (ver liveAnimation.js) → solta tudo e alivia
+    // cheia; chegou perto (ver liveAnimation.js) → solta tudo, alivia e
+    // emenda no afterglow (derretido) antes de voltar ao normal
     if (es.phase === 'rush') {
       if (state.rushArrived) {
         state.rushArrived = false;
         state.pendingBurst = true;
-        state.blushUntil = now + 5500;
         state.affection = 0;
         state.excitedCooldownUntil = now + SHY_COOLDOWN_MS;
         speak('rush_done', true);
-        exitExcitedToNormality('chegou no mouse — soltou tudo e aliviou', now);
+        logEvent('excited', 'chegou no mouse — soltou tudo e aliviou');
+        startAfterglow(now);
       }
       return null;
+    }
+
+    // fase afterglow: derretido pós-alívio — flutua devagar, meio caído,
+    // giro preguiçoso; solta uma fala desconexa no meio e volta ao normal
+    if (es.phase === 'afterglow') {
+      const el = now - es.afterglowStart;
+      const p = el / AFTERGLOW_MS;
+      if (p >= 1) {
+        exitExcitedToNormality('afterglow terminou — recompôs a dignidade', now);
+        return null;
+      }
+      if (now >= es.nextLineAt) {
+        es.nextLineAt = now + 3200 + Math.random() * 2500;
+        speak('afterglow', true);
+      }
+      // Derretido: balanço lento e largo, levemente afundado, quase sem girar
+      const settle = Math.min(1, p * 3); // afunda rápido, recupera no final
+      const recover = clamp((p - 0.75) / 0.25, 0, 1);
+      return {
+        z: Math.sin(el / 480) * 0.14 * (1 - recover),
+        y: -0.35 * settle * (1 - recover) + Math.sin(el / 700) * 0.08,
+        scale: -0.05 * settle * (1 - recover),
+        unfold: 0.1 * (1 - p),
+        spinMul: 0.15 + recover * 0.85,
+      };
     }
 
     // fase shy2 (much_petting): segunda sobrecarga, MUITO mais intensa —

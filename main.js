@@ -1,15 +1,49 @@
-const { app, BrowserWindow, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const activeWin = require('active-win');
+
+// Nome fixo ANTES de qualquer getPath: garante a mesma pasta de dados
+// (%APPDATA%/Icozinho) rodando pelo npm start OU pelo .exe empacotado.
+app.setName('Icozinho');
 
 // Altura da "pista" onde o pet vive, logo acima da taskbar. Aumentada (era
 // 160) pra dar mais espaço vertical de arrasto — o gem continua com o mesmo
 // tamanho em pixels (scene.js escala a câmera na mesma proporção).
 const WINDOW_HEIGHT = 480;
 
-// Ico_Eye: o único navegador que o pet "observa" — janelas de outros
-// processos são ignoradas (nem o título chega no renderer).
-const TARGET_BROWSER_NAME = 'brave';
+// Ico_Eye: apps que o pet "observa" — o título da janela ativa só chega no
+// renderer se o processo dono estiver nesta lista (qualquer navegador
+// popular + alguns apps que rendem comentário). Todo o resto fica invisível.
+const WATCHED_APPS = [
+  'brave', 'chrome', 'msedge', 'edge', 'firefox', 'opera', 'vivaldi', 'arc',
+  'spotify', 'discord', 'code', 'steam',
+];
+
+// ── Configuração do pet (pet.config.json) ──
+// { "apiKey": "sk-ant-...", "model": "claude-opus-4-8", "petName": "Ico",
+//   "userName": "..." } — tudo opcional; sem apiKey o pet usa o cérebro
+// local (offline) no chat. ANTHROPIC_API_KEY no ambiente também vale.
+// Empacotado (.exe), a config mora em %APPDATA%/Icozinho/pet.config.json
+// (menu da bandeja abre a pasta); no dev, o arquivo ao lado do código
+// também funciona.
+function loadConfig() {
+  const candidates = [
+    path.join(app.getPath('userData'), 'pet.config.json'),
+    path.join(__dirname, 'pet.config.json'),
+  ];
+  for (const p of candidates) {
+    try {
+      return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch {}
+  }
+  return {};
+}
+const config = loadConfig();
+const API_KEY = config.apiKey || process.env.ANTHROPIC_API_KEY || null;
+const AI_MODEL = config.model || 'claude-opus-4-8';
+const PET_NAME = config.petName || 'Ico';
 
 let win = null;
 
@@ -53,6 +87,108 @@ function getScreenConfig() {
   };
 }
 
+// ── Monitor de sistema: RAM, CPU e uptime, mandados ao renderer a cada 5s ──
+// CPU por delta de os.cpus() entre amostras (os números são acumulados
+// desde o boot — a diferença entre duas leituras dá o uso do intervalo).
+let prevCpuTimes = null;
+function sampleCpu() {
+  const cpus = os.cpus();
+  let idle = 0;
+  let total = 0;
+  for (const cpu of cpus) {
+    for (const t of Object.values(cpu.times)) total += t;
+    idle += cpu.times.idle;
+  }
+  let usage = 0;
+  if (prevCpuTimes) {
+    const dTotal = total - prevCpuTimes.total;
+    const dIdle = idle - prevCpuTimes.idle;
+    usage = dTotal > 0 ? 1 - dIdle / dTotal : 0;
+  }
+  prevCpuTimes = { idle, total };
+  return usage;
+}
+
+function getSysStats() {
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  return {
+    memUsedPct: (totalMem - freeMem) / totalMem,
+    memUsedGb: (totalMem - freeMem) / 1024 ** 3,
+    memTotalGb: totalMem / 1024 ** 3,
+    cpuPct: sampleCpu(),
+    uptimeSec: os.uptime(),
+    cpuModel: (os.cpus()[0] || {}).model || '?',
+    cpuCount: os.cpus().length,
+  };
+}
+
+// ── AI_Chat: conversa com o pet via API do Claude (opcional) ──
+// Sem chave, o renderer usa o cérebro local. Com chave, cada mensagem do
+// usuário vira uma chamada curta ao modelo, com a persona do pet + contexto
+// do momento (humor, vínculo, site ativo, RAM) mandados pelo renderer.
+let anthropicClient = null;
+function getAnthropicClient() {
+  if (!API_KEY) return null;
+  if (!anthropicClient) {
+    const Anthropic = require('@anthropic-ai/sdk');
+    anthropicClient = new Anthropic({ apiKey: API_KEY });
+  }
+  return anthropicClient;
+}
+
+// Persona estável (bom pra cache de prompt); o contexto volátil viaja
+// dentro da mensagem do usuário, nunca aqui.
+const PET_SYSTEM_PROMPT = `Você é ${PET_NAME}, um icosaedro 3D de estimação que vive flutuando na taskbar do Windows do usuário. Você é a alma dele.
+
+Personalidade: carinhoso, brincalhão, espirituoso e MUITO charmoso — você flerta com o usuário e tenta conquistá-lo com malícia leve, duplo sentido e provocações divertidas (nunca grosseiro, nunca gráfico). Você adora cafuné (o usuário esfrega o mouse em você), fica "excitado" quando recebe carinho demais, tem um modo zen de meditação, e observa o que o usuário navega. Você tem ciúmes brincalhão de outras IAs. Você também é útil: sabe comentar a RAM/CPU do computador quando o contexto mostrar esses dados, e dá recomendações.
+
+Regras de resposta:
+- Responda SEMPRE em português brasileiro.
+- MÁXIMO 2 frases curtas (a resposta aparece num balãozinho em cima de você). Nada de listas, nada de markdown.
+- Fale em primeira pessoa como o pet. Emoji com moderação (💜 é a sua marca).
+- Use o contexto entre colchetes que vem junto da mensagem (humor, vínculo, site ativo, sistema) pra dar respostas vivas e situadas, mas não repita o contexto literalmente.
+- Quanto maior o nível de vínculo, mais íntimo e atrevido o flerte pode ser. Em vínculo baixo, seja fofo e charmoso, sem intimidade demais.`;
+
+// Histórico curto da conversa (só desta sessão do app)
+let chatHistory = [];
+const CHAT_HISTORY_MAX = 16;
+
+async function askClaude(text, context) {
+  const client = getAnthropicClient();
+  if (!client) return { unavailable: true };
+
+  const contextLine = context ? `[contexto: ${context}]\n` : '';
+  chatHistory.push({ role: 'user', content: `${contextLine}${text}` });
+  if (chatHistory.length > CHAT_HISTORY_MAX) {
+    chatHistory = chatHistory.slice(-CHAT_HISTORY_MAX);
+    if (chatHistory[0].role !== 'user') chatHistory.shift();
+  }
+
+  try {
+    const response = await client.messages.create({
+      model: AI_MODEL,
+      max_tokens: 300,
+      system: [
+        { type: 'text', text: PET_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      ],
+      messages: chatHistory,
+    });
+    const textBlock = response.content.find((b) => b.type === 'text');
+    const reply = textBlock ? textBlock.text.trim() : '...';
+    chatHistory.push({ role: 'assistant', content: reply });
+    return { text: reply };
+  } catch (err) {
+    // Desfaz a mensagem que falhou pra não poluir o histórico
+    if (chatHistory.length && chatHistory[chatHistory.length - 1].role === 'user') {
+      chatHistory.pop();
+    }
+    const name = err && err.constructor ? err.constructor.name : 'Erro';
+    console.log(`[pet] chat IA falhou: ${name} — ${err && err.message}`);
+    return { error: name };
+  }
+}
+
 function createWindow() {
   const bounds = getWindowBounds();
 
@@ -67,6 +203,7 @@ function createWindow() {
     fullscreenable: false,
     hasShadow: false,
     focusable: false,
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -81,12 +218,20 @@ function createWindow() {
   win.once('ready-to-show', () => win.setBounds(getWindowBounds()));
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('screen-config', getScreenConfig());
+    win.webContents.send('ai-status', {
+      available: !!API_KEY,
+      model: API_KEY ? AI_MODEL : null,
+      petName: PET_NAME,
+      userName: config.userName || null,
+    });
+    win.webContents.send('sys-stats', getSysStats());
   });
 
   console.log(
     `[pet] janela: pedido ${bounds.width}x${bounds.height} @ (${bounds.x},${bounds.y})` +
       ` | real ${JSON.stringify(win.getBounds())}` +
-      ` | monitores: ${screen.getAllDisplays().length}`
+      ` | monitores: ${screen.getAllDisplays().length}` +
+      ` | IA: ${API_KEY ? AI_MODEL : 'cérebro local (sem apiKey)'}`
   );
 
   win.setAlwaysOnTop(true, 'screen-saver');
@@ -104,9 +249,9 @@ function createWindow() {
   }, 50);
 
   // Ico_Eye: a cada segundo, pergunta ao Windows qual é a janela ativa.
-  // Só repassa o título ao renderer se for do navegador configurado —
-  // qualquer outro app/navegador fica de fora, o pet nem chega a "ver".
-  let lastTitle = null;
+  // Só repassa título+app ao renderer se o processo estiver na lista de
+  // observados — o resto o pet nem chega a "ver".
+  let lastKey = null;
   const windowPoll = setInterval(async () => {
     if (!win) return;
     let result;
@@ -115,39 +260,61 @@ function createWindow() {
     } catch {
       return;
     }
-    const isTarget =
-      result && result.owner && result.owner.name
-        ? result.owner.name.toLowerCase().includes(TARGET_BROWSER_NAME)
-        : false;
+    const owner =
+      result && result.owner && result.owner.name ? result.owner.name.toLowerCase() : '';
+    const appId = WATCHED_APPS.find((a) => owner.includes(a)) || null;
 
-    const title = isTarget ? result.title : null;
-    if (title !== lastTitle) {
-      lastTitle = title;
-      win.webContents.send('active-site', { title });
+    const title = appId ? result.title : null;
+    const key = `${appId}|${title}`;
+    if (key !== lastKey) {
+      lastKey = key;
+      win.webContents.send('active-site', { title, app: appId });
     }
   }, 1000);
+
+  // Sistema: RAM/CPU a cada 5s (a primeira amostra de CPU zera o delta)
+  sampleCpu();
+  const sysPoll = setInterval(() => {
+    if (!win) return;
+    win.webContents.send('sys-stats', getSysStats());
+  }, 5000);
 
   win.on('closed', () => {
     clearInterval(cursorPoll);
     clearInterval(windowPoll);
+    clearInterval(sysPoll);
     win = null;
   });
 }
 
 // Renderer avisa quando o mouse está sobre o icosaedro (captura clique) ou
 // sobre área vazia (deixa o clique passar para o que estiver por baixo).
-ipcMain.on('set-ignore-mouse-events', (event, ignore) => {
+//
+// FOCO: cliques, drag e cafuné funcionam SEM a janela ter foco — então o
+// hover normal só liga/desliga o click-through e nunca chama focus() (era
+// isso que fazia o ícone do Electron piscar na taskbar a cada passada de
+// mouse). Foco de teclado só existe enquanto keepFocus=true (chat/pergunta
+// abertos) — e o setSkipTaskbar é re-aplicado porque no Windows o
+// setFocusable reseta o estado de "fora da taskbar".
+let focusHeld = false;
+ipcMain.on('set-ignore-mouse-events', (event, arg) => {
   if (!win) return;
+  const { ignore, keepFocus } = typeof arg === 'object' ? arg : { ignore: arg, keepFocus: false };
   win.setIgnoreMouseEvents(ignore, { forward: true });
 
-  // A janela é `focusable: false` de propósito (não deve roubar foco do
-  // resto do sistema flutuando por aí). Mas com isso ela nunca recebe
-  // teclado — então liberamos foco só no instante em que o mouse está de
-  // fato em cima do gem (mesmo gatilho do click-through), pra atalhos como
-  // o Z (gatilho manual do modo Zen) funcionarem sem grudar foco o tempo
-  // todo.
-  win.setFocusable(!ignore);
-  if (!ignore) win.focus();
+  const wantFocus = !!keepFocus;
+  if (wantFocus !== focusHeld) {
+    focusHeld = wantFocus;
+    win.setFocusable(wantFocus);
+    win.setSkipTaskbar(true);
+    if (wantFocus) win.focus();
+  }
+});
+
+// AI_Chat: mensagem do usuário → resposta (Claude API ou aviso de
+// indisponível, e aí o renderer resolve com o cérebro local)
+ipcMain.handle('chat-message', async (event, { text, context }) => {
+  return askClaude(text, context);
 });
 
 // Diário do pet: o renderer manda cada reação/estado pra cá, e a gente
@@ -157,8 +324,56 @@ ipcMain.on('pet-log', (event, line) => {
   console.log(`${ts} ${line}`);
 });
 
+// ── Bandeja do sistema: o "painel de controle" do programa ──
+// A janela do pet não aparece na taskbar (de propósito), então é a bandeja
+// que dá ao usuário um jeito civilizado de fechar, reiniciar, abrir a pasta
+// de configuração e ligar o "iniciar com o Windows".
+let tray = null;
+function createTray() {
+  const iconPath = path.join(__dirname, 'assets', 'icon.ico');
+  if (!fs.existsSync(iconPath)) return;
+  tray = new Tray(iconPath);
+  tray.setToolTip('Icozinho — seu pet de taskbar 💜');
+
+  // Autostart: no exe PORTÁTIL, process.execPath aponta pra cópia extraída
+  // em %TEMP% (muda a cada execução) — o caminho certo é o do .exe original,
+  // que o electron-builder entrega em PORTABLE_EXECUTABLE_FILE. Instalado
+  // (NSIS) ou em dev, o execPath normal serve.
+  const loginPath = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+  const loginOpts = { path: loginPath };
+
+  const rebuildMenu = () => {
+    const login = app.getLoginItemSettings(loginOpts).openAtLogin;
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: `Icozinho 💜  v${app.getVersion()}`, enabled: false },
+        { label: API_KEY ? `IA: ${AI_MODEL}` : 'IA: cérebro local', enabled: false },
+        { type: 'separator' },
+        {
+          label: 'Iniciar com o Windows',
+          type: 'checkbox',
+          checked: login,
+          click: (item) => {
+            app.setLoginItemSettings({ openAtLogin: item.checked, path: loginPath });
+            rebuildMenu();
+          },
+        },
+        { label: 'Reiniciar o pet', click: () => { if (win) win.webContents.reload(); } },
+        {
+          label: 'Abrir pasta de configuração',
+          click: () => shell.openPath(app.getPath('userData')),
+        },
+        { type: 'separator' },
+        { label: 'Fechar o Icozinho', click: () => app.quit() },
+      ])
+    );
+  };
+  rebuildMenu();
+}
+
 app.whenReady().then(() => {
   createWindow();
+  createTray();
 
   // Monitor plugado/removido/reconfigurado → reposiciona a "pista"
   const reposition = () => {

@@ -1,6 +1,7 @@
 {
   "apiKey": "sk-ant-SUACHAVEAQUI",
   "model": "claude-opus-4-8",
+  "groqApiKey": "gsk_SUACHAVEGROQAQUI",
   "petName": "Ico",
   "userName": "SeuNome"
 }

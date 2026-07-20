@@ -43,6 +43,8 @@ function loadConfig() {
 const config = loadConfig();
 const API_KEY = config.apiKey || process.env.ANTHROPIC_API_KEY || null;
 const AI_MODEL = config.model || 'claude-opus-4-8';
+const GROQ_API_KEY = config.groqApiKey || process.env.GROQ_API_KEY || null;
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const PET_NAME = config.petName || 'Ico';
 
 let win = null;
@@ -189,6 +191,71 @@ async function askClaude(text, context) {
   }
 }
 
+// Diário de conversas: cada pergunta+resposta da Gemini vai pra um JSON em
+// userData, pra revisão manual depois — os padrões mais comuns viram
+// entradas fixas no lorebook.js (renderer), reduzindo a dependência da API.
+function logConversation(question, answer) {
+  const logPath = path.join(app.getPath('userData'), 'conversationLog.json');
+  let log = [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(logPath, 'utf8'));
+    if (Array.isArray(parsed)) log = parsed;
+  } catch {}
+  log.push({ question, answer, timestamp: new Date().toISOString() });
+  try {
+    fs.writeFileSync(logPath, JSON.stringify(log, null, 2));
+  } catch (err) {
+    console.log(`[pet] falha ao salvar conversationLog.json: ${err && err.message}`);
+  }
+}
+
+// ── AI_Chat (Groq): alternativa ao Claude, mesma persona/contrato ──
+// Sem groqApiKey, retorna { unavailable: true } — igual askClaude — pro
+// renderer cair no cérebro local (brain.js). Com erro na chamada ou
+// resposta vazia, retorna { error } pelo mesmo motivo.
+async function askGroq(text, context) {
+  if (!GROQ_API_KEY) return { unavailable: true };
+
+  const contextLine = context ? `[contexto: ${context}]\n` : '';
+
+  let data;
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [
+          { role: 'system', content: PET_SYSTEM_PROMPT },
+          { role: 'user', content: `${contextLine}${text}` },
+        ],
+        max_tokens: 300,
+      }),
+    });
+    if (!response.ok) {
+      console.log(`[pet] chat Groq falhou: HTTP ${response.status}`);
+      return { error: `HTTP ${response.status}` };
+    }
+    data = await response.json();
+  } catch (err) {
+    const name = err && err.constructor ? err.constructor.name : 'Erro';
+    console.log(`[pet] chat Groq falhou: ${name} — ${err && err.message}`);
+    return { error: name };
+  }
+
+  const reply = data?.choices?.[0]?.message?.content?.trim();
+  if (!reply) {
+    console.log('[pet] chat Groq falhou: resposta vazia');
+    return { error: 'resposta vazia' };
+  }
+
+  logConversation(text, reply);
+  return { text: reply };
+}
+
 function createWindow() {
   const bounds = getWindowBounds();
 
@@ -219,8 +286,8 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('screen-config', getScreenConfig());
     win.webContents.send('ai-status', {
-      available: !!API_KEY,
-      model: API_KEY ? AI_MODEL : null,
+      available: !!GROQ_API_KEY,
+      model: GROQ_API_KEY ? GROQ_MODEL : null,
       petName: PET_NAME,
       userName: config.userName || null,
     });
@@ -231,7 +298,7 @@ function createWindow() {
     `[pet] janela: pedido ${bounds.width}x${bounds.height} @ (${bounds.x},${bounds.y})` +
       ` | real ${JSON.stringify(win.getBounds())}` +
       ` | monitores: ${screen.getAllDisplays().length}` +
-      ` | IA: ${API_KEY ? AI_MODEL : 'cérebro local (sem apiKey)'}`
+      ` | IA: ${GROQ_API_KEY ? GROQ_MODEL : 'cérebro local (sem groqApiKey)'}`
   );
 
   win.setAlwaysOnTop(true, 'screen-saver');
@@ -311,10 +378,10 @@ ipcMain.on('set-ignore-mouse-events', (event, arg) => {
   }
 });
 
-// AI_Chat: mensagem do usuário → resposta (Claude API ou aviso de
-// indisponível, e aí o renderer resolve com o cérebro local)
+// AI_Chat: mensagem do usuário → resposta (Gemini, ou erro/indisponível —
+// aí o renderer resolve com o cérebro local em brain.js)
 ipcMain.handle('chat-message', async (event, { text, context }) => {
-  return askClaude(text, context);
+  return askGroq(text, context);
 });
 
 // Diário do pet: o renderer manda cada reação/estado pra cá, e a gente
@@ -347,7 +414,7 @@ function createTray() {
     tray.setContextMenu(
       Menu.buildFromTemplate([
         { label: `Icozinho 💜  v${app.getVersion()}`, enabled: false },
-        { label: API_KEY ? `IA: ${AI_MODEL}` : 'IA: cérebro local', enabled: false },
+        { label: GROQ_API_KEY ? `IA: ${GROQ_MODEL}` : 'IA: cérebro local', enabled: false },
         { type: 'separator' },
         {
           label: 'Iniciar com o Windows',

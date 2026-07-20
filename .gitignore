@@ -1,7 +1,9 @@
 node_modules/
 dist/
 
-# Configuração local do pet (chave da API do Claude, nome, etc.) — NUNCA comitar
+# Configuração local do pet (chave da API do Claude/Gemini, nome, etc.) — NUNCA comitar
 pet.config.json
+# Histórico de conversas com a IA, salvo em userData — dados pessoais, NUNCA comitar
+conversationLog.json
 elec_out.log
 elec_err.log

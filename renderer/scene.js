@@ -20,6 +20,34 @@ export const GEM_RADIUS = 1.5;
 export const WORLD_HALF_PER_PX = 0.024;
 const viewHalfHeight = () => window.innerHeight * WORLD_HALF_PER_PX;
 
+// ─── Utilitários da transição de humor ───────────────────────────────────────
+// Cada humor entra com uma ease com a cara dele: o Excited ESTOURA (overshoot
+// elástico — os espinhos passam do ponto e assentam), o Zen desliza como seda
+// e o Normality volta num cubic neutro.
+const easeInOutSine = (p) => 0.5 - Math.cos(Math.PI * p) / 2;
+const easeInOutCubic = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+const easeOutBack = (p) => {
+  const c1 = 2.4;
+  return 1 + (c1 + 1) * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
+};
+
+// Heartbeat "tum-tum" (~0.86s, mesmo desenho do liveAnimation.js): no Excited
+// ele rege os espinhos, a casca de arame, as faíscas e o emissive.
+const HEARTBEAT_PERIOD_MS = 860;
+function heartbeat(nowMs) {
+  const bt = (nowMs % HEARTBEAT_PERIOD_MS) / HEARTBEAT_PERIOD_MS;
+  const lub = Math.exp(-Math.pow((bt - 0.1) / 0.055, 2));
+  const dub = Math.exp(-Math.pow((bt - 0.38) / 0.07, 2)) * 0.55;
+  return lub + dub;
+}
+
+// Cor-assinatura de cada humor (anel de choque da transição)
+const MODE_ACCENT = {
+  normality: '#c4b5fd',
+  zen: '#22D3EE',
+  excited: '#FB7185',
+};
+
 export function initScene(canvas) {
   const scene = new THREE.Scene();
 
@@ -109,23 +137,28 @@ export function initScene(canvas) {
   }
 
   // ── Morph de forma por personalidade ────────────────────────────────────
-  // O corpo é SEMPRE o icosaedro (a identidade dele), mas tensiona e relaxa:
-  // no Zen ele arredonda em direção a uma esfera (perde as arestas, respira);
-  // no Excited ele se eriça (algumas facetas jutam pra fora viram espinhos).
+  // O corpo é SEMPRE o icosaedro (a identidade dele), mas cada humor tem uma
+  // FORMA própria de verdade:
+  //   Zen     → orbe: esfera completa com sombreamento LISO (as normais
+  //             fundem pra radial dentro do applyUnfold) — vira uma bola de
+  //             vidro serena, sem arestas.
+  //   Excited → eriçado: facetas jutam pra fora viram espinhos, e os
+  //             espinhos LATEJAM no ritmo do heartbeat.
   // Guardo dois "deltas" por vértice (esfera − ico, espinhos − ico) e um
-  // escalar contínuo shapeCur ∈ [-1, +1]: -1 = esfera (zen), 0 = ico puro
+  // escalar contínuo shapeCur ∈ [-1, +1]: -1 = orbe (zen), 0 = ico puro
   // (normality), +1 = espinhos (excited). Como qualquer transição passa por
   // 0, ir de um humor pro outro nunca dá "pop" — cruza o icosaedro no meio.
   const dSphere = new Float32Array(basePos.length); // esfera − ico, por vértice
   const dSpiky = new Float32Array(basePos.length);  // espinhos − ico, por vértice
   {
     const v = new THREE.Vector3();
-    // Esfera: cada vértice puxado pro raio (arredonda a silhueta).
+    // Orbe: cada vértice puxado pro raio — esfera completa; o "liso" de
+    // verdade vem do blend de normais no applyUnfold.
     for (let i = 0; i < basePos.length; i += 3) {
       v.set(basePos[i], basePos[i + 1], basePos[i + 2]).setLength(GEM_RADIUS);
-      dSphere[i] = (v.x - basePos[i]) * 0.9; // 0.9: arredonda sem virar bola perfeita
-      dSphere[i + 1] = (v.y - basePos[i + 1]) * 0.9;
-      dSphere[i + 2] = (v.z - basePos[i + 2]) * 0.9;
+      dSphere[i] = v.x - basePos[i];
+      dSphere[i + 1] = v.y - basePos[i + 1];
+      dSphere[i + 2] = v.z - basePos[i + 2];
     }
     // Espinhos: ~60% das faces jutam pra fora ao longo da normal (amplitude
     // irregular → eriçado, não uniforme); as outras ficam quase paradas.
@@ -141,18 +174,37 @@ export function initScene(canvas) {
     }
   }
 
-  // shapeCur persegue shapeTarget (setado por setShapeMode). O avanço é feito
-  // dentro de applyUnfold (que roda todo frame), usando delta de relógio real.
+  // ── Transição de humor: timeline com personalidade ──
+  // setShapeMode detecta a troca e arma morphAnim: shapeCur viaja de from→to
+  // com a ease do humor de destino, enquanto transBurst (0→1→0) rege o
+  // estouro de facetas, o flash do emissive, o soco de escala e o shockwave.
   let shapeCur = 0;
-  let shapeTarget = 0;
-  let lastShapeTime = 0;
+  let visualMode = 'normality';
+  let morphAnim = null;  // { start, from, to, dur, ease, burstAmp }
+  let shockwave = null;  // { start, dur, color }
+  let transBurst = 0;    // envelope do estouro (já multiplicado por burstAmp)
   const morphedBase = new Float32Array(basePos.length); // ico + morph, base do unfold
 
-  // Chamado a cada troca de humor (movement.js passa state.mode todo frame; é
-  // idempotente — só reage quando o alvo muda de verdade).
+  // Chamado a cada frame pelo movement.js com state.mode — idempotente, só
+  // reage quando o humor muda de verdade.
   function setShapeMode(mode) {
-    const target = mode === 'zen' ? -1 : mode === 'excited' ? 1 : 0;
-    if (target !== shapeTarget) shapeTarget = target;
+    const m = mode === 'zen' || mode === 'excited' ? mode : 'normality';
+    if (m === visualMode) return;
+    visualMode = m;
+    morphAnim = {
+      start: performance.now(),
+      from: shapeCur,
+      to: m === 'zen' ? -1 : m === 'excited' ? 1 : 0,
+      dur: m === 'excited' ? 1150 : m === 'zen' ? 2300 : 1500,
+      ease: m === 'excited' ? easeOutBack : m === 'zen' ? easeInOutSine : easeInOutCubic,
+      // estouro de facetas: forte no excited, sopro suave no zen
+      burstAmp: m === 'excited' ? 0.85 : m === 'zen' ? 0.32 : 0.5,
+    };
+    shockwave = {
+      start: morphAnim.start,
+      dur: m === 'excited' ? 750 : 1200,
+      color: new THREE.Color(MODE_ACCENT[m]),
+    };
   }
 
   // ── Cores dinâmicas ──
@@ -185,18 +237,98 @@ export function initScene(canvas) {
   });
   const mesh = new THREE.Mesh(gemGeo, material);
 
-  // Casca wireframe lilás — nunca desdobra, fica como "memória" do sólido
+  // Casca wireframe lilás — a "memória" do sólido. No Zen ela SOME (o orbe é
+  // liso, sem arestas); no Excited esquenta pra rosa e pulsa com o heartbeat.
   const baseEdge = new THREE.IcosahedronGeometry(GEM_RADIUS * 1.013, 1);
   const edgeGeo = new THREE.EdgesGeometry(baseEdge);
   baseEdge.dispose();
-  const edges = new THREE.LineSegments(
-    edgeGeo,
-    new THREE.LineBasicMaterial({ color: '#c4b5fd', transparent: true, opacity: 0.18 })
-  );
+  const EDGE_BASE = new THREE.Color('#c4b5fd');
+  const EDGE_HOT = new THREE.Color('#FB7185');
+  const edgeMat = new THREE.LineBasicMaterial({ color: '#c4b5fd', transparent: true, opacity: 0.18 });
+  const edges = new THREE.LineSegments(edgeGeo, edgeMat);
+
+  // ── Adereços por humor (entram/saem por fade — a troca nunca corta seco) ──
+  // Textura suave circular pros pontos (vagalumes/faíscas), gerada na hora.
+  const softTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.45, 'rgba(255,255,255,0.55)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+
+  // Zen: dois anéis "ensō" inclinados em precessão lenta + vagalumes orbitando
+  const zenGroup = new THREE.Group();
+  const ringMat1 = new THREE.MeshBasicMaterial({ color: '#22D3EE', transparent: true, opacity: 0, depthWrite: false });
+  const ringMat2 = new THREE.MeshBasicMaterial({ color: '#34D399', transparent: true, opacity: 0, depthWrite: false });
+  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(GEM_RADIUS * 1.55, 0.022, 8, 96), ringMat1);
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(GEM_RADIUS * 1.85, 0.014, 8, 96), ringMat2);
+  ring1.rotation.x = 1.25;
+  ring2.rotation.x = -1.05;
+  ring2.rotation.y = 0.6;
+  zenGroup.add(ring1, ring2);
+
+  const MOTE_COUNT = 12;
+  const moteGeo = new THREE.BufferGeometry();
+  moteGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MOTE_COUNT * 3), 3));
+  const moteMat = new THREE.PointsMaterial({
+    map: softTex, color: '#a5f3fc', size: 0.34, transparent: true, opacity: 0,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const motes = new THREE.Points(moteGeo, moteMat);
+  motes.frustumCulled = false;
+  const moteSeeds = [];
+  for (let i = 0; i < MOTE_COUNT; i++) {
+    moteSeeds.push({
+      ang: Math.random() * Math.PI * 2,
+      speed: (0.18 + Math.random() * 0.25) * (Math.random() < 0.5 ? 1 : -1),
+      radius: GEM_RADIUS * (1.7 + Math.random() * 0.7),
+      yAmp: 0.35 + Math.random() * 0.5,
+      phase: Math.random() * Math.PI * 2,
+    });
+  }
+  zenGroup.add(motes);
+  zenGroup.visible = false;
+
+  // Excited: enxame de faíscas tremendo por entre os espinhos
+  const SPARK_COUNT = 20;
+  const sparkGeo = new THREE.BufferGeometry();
+  sparkGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SPARK_COUNT * 3), 3));
+  const sparkMat = new THREE.PointsMaterial({
+    map: softTex, color: '#FB7185', size: 0.22, transparent: true, opacity: 0,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const sparks = new THREE.Points(sparkGeo, sparkMat);
+  sparks.frustumCulled = false;
+  const sparkSeeds = [];
+  for (let i = 0; i < SPARK_COUNT; i++) {
+    sparkSeeds.push({
+      ang: Math.random() * Math.PI * 2,
+      speed: (1.6 + Math.random() * 2.4) * (Math.random() < 0.5 ? 1 : -1),
+      radius: GEM_RADIUS * (1.45 + Math.random() * 0.7),
+      yAmp: 0.5 + Math.random() * 0.9,
+      phase: Math.random() * Math.PI * 2,
+      wob: 3 + Math.random() * 4,
+    });
+  }
+  sparks.visible = false;
+
+  // Anel de choque da transição: expande e some na cor do humor de destino.
+  // Fica no plano XY — de frente pra câmera ortográfica.
+  const shockMat = new THREE.MeshBasicMaterial({
+    color: '#ffffff', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+  });
+  const shockRing = new THREE.Mesh(new THREE.TorusGeometry(GEM_RADIUS * 1.15, 0.05, 8, 64), shockMat);
+  shockRing.visible = false;
 
   // group = posição/escala (movimento); o mesh interno cuida do visual.
   const gem = new THREE.Group();
-  gem.add(mesh, edges);
+  gem.add(mesh, edges, zenGroup, sparks, shockRing);
   scene.add(gem);
 
   window.addEventListener('resize', () => {
@@ -211,29 +343,43 @@ export function initScene(canvas) {
   });
 
   // Desdobra as facetas: desloca os 3 vértices de cada face ao longo da
-  // normal, a partir da base morfada (ico ↔ esfera/espinhos). Só reescreve o
-  // buffer quando algo muda de verdade — disp (respiração) OU a forma.
+  // normal, a partir da base morfada (ico ↔ orbe/espinhos). Só reescreve o
+  // buffer quando algo muda de verdade — disp (respiração), a forma, ou o
+  // latejo dos espinhos.
   let lastDisp = -1;
   let lastShape = -999;
+  const nTmp = new THREE.Vector3();
   function applyUnfold(disp) {
-    // Avança o morph de forma até o alvo do humor atual (delta de relógio real,
-    // já que applyUnfold não recebe delta e roda uma vez por frame).
     const now = performance.now();
-    if (lastShapeTime) {
-      const dt = Math.min((now - lastShapeTime) / 1000, 0.05);
-      shapeCur += (shapeTarget - shapeCur) * (1 - Math.exp(-2.6 * dt));
-      if (Math.abs(shapeTarget - shapeCur) < 0.0008) shapeCur = shapeTarget;
-    }
-    lastShapeTime = now;
 
-    const shapeMoved = Math.abs(shapeCur - lastShape) >= 0.0008;
-    if (Math.abs(disp - lastDisp) < 0.0006 && !shapeMoved) return;
-    lastDisp = disp;
-    lastShape = shapeCur;
+    // Timeline da transição de humor (armada pelo setShapeMode)
+    if (morphAnim) {
+      const p = (now - morphAnim.start) / morphAnim.dur;
+      if (p >= 1) {
+        shapeCur = morphAnim.to;
+        transBurst = 0;
+        morphAnim = null;
+      } else {
+        shapeCur = morphAnim.from + (morphAnim.to - morphAnim.from) * morphAnim.ease(Math.max(p, 0));
+        transBurst = Math.sin(p * Math.PI) * morphAnim.burstAmp;
+      }
+    }
+
+    // Espinhos latejam com o heartbeat (só com o corpo eriçado); o estouro
+    // da transição entra como unfold extra — as facetas explodem no meio do
+    // caminho e reassentam já na forma nova.
+    const sEff = shapeCur > 0 ? shapeCur * (0.86 + 0.14 * heartbeat(now)) : shapeCur;
+    const dispTotal = disp + transBurst;
+
+    const shapeMoved = Math.abs(sEff - lastShape) >= 0.0008;
+    if (Math.abs(dispTotal - lastDisp) < 0.0006 && !shapeMoved) return;
+    lastDisp = dispTotal;
+    lastShape = sEff;
 
     // Base morfada: cruza o icosaedro no meio (shapeCur=0), então zen↔excited
-    // nunca dá pop. Negativo puxa pra esfera, positivo empurra pros espinhos.
-    const s = shapeCur;
+    // nunca dá pop. Negativo puxa pro orbe, positivo empurra pros espinhos
+    // (sEff pode passar de 1 de leve — é o overshoot elástico do easeOutBack).
+    const s = sEff;
     if (s < 0) {
       const k = -s;
       for (let i = 0; i < basePos.length; i++) morphedBase[i] = basePos[i] + dSphere[i] * k;
@@ -247,7 +393,7 @@ export function initScene(canvas) {
     const arr = pos.array;
     for (let f = 0; f < faceCount; f++) {
       const n = faceNormals[f];
-      const offset = disp * faceVariance[f] * 0.55;
+      const offset = dispTotal * faceVariance[f] * 0.55;
       for (let v = 0; v < 3; v++) {
         const idx = (f * 3 + v) * 3;
         arr[idx] = morphedBase[idx] + n.x * offset;
@@ -256,19 +402,46 @@ export function initScene(canvas) {
       }
     }
     pos.needsUpdate = true;
+
     // O unfold puro desliza ao longo da normal e não muda a orientação da
-    // face — mas o morph de forma muda: recalcula as normais só quando a forma
-    // está mexendo, senão a iluminação fica "presa" no icosaedro.
-    if (shapeMoved) gemGeo.computeVertexNormals();
+    // face — mas o morph de forma muda: recalcula as normais só quando a
+    // forma está mexendo. No lado do orbe (s<0), as normais fundem pra
+    // radial na mesma proporção — é isso que apaga as facetas e deixa o Zen
+    // com cara de bola de vidro lisa.
+    if (shapeMoved) {
+      gemGeo.computeVertexNormals();
+      const k = s < 0 ? Math.min(-s, 1) : 0;
+      if (k > 0.01) {
+        const nrm = gemGeo.attributes.normal.array;
+        for (let i = 0; i < arr.length; i += 3) {
+          nTmp.set(arr[i], arr[i + 1], arr[i + 2]).normalize();
+          let nx = nrm[i] + (nTmp.x - nrm[i]) * k;
+          let ny = nrm[i + 1] + (nTmp.y - nrm[i + 1]) * k;
+          let nz = nrm[i + 2] + (nTmp.z - nrm[i + 2]) * k;
+          const len = Math.hypot(nx, ny, nz) || 1;
+          nrm[i] = nx / len;
+          nrm[i + 1] = ny / len;
+          nrm[i + 2] = nz / len;
+        }
+        gemGeo.attributes.normal.needsUpdate = true;
+      }
+    }
     gemGeo.computeBoundingSphere(); // mantém o raycast (clique) correto
   }
 
   // Animações visuais contínuas: órbita das luzes (centrada NO GEM, para a
   // iluminação ficar constante pela tela toda), pulso do emissive, transição
-  // de cor por face e o estado de energia (evento shutdown) / sono.
+  // de cor por face, adereços de humor (anéis/vagalumes/faíscas), shockwave
+  // da transição e o estado de energia (evento shutdown) / sono.
+  let zenMix = 0;      // fade dos adereços do Zen
+  let excMix = 0;      // fade dos adereços do Excited
+  let moodPhase = 0;   // fase do pulso do emissive (frequência muda por humor)
+  let emissiveCur = 0.55;
   function updateVisuals(t, delta, state = {}) {
     const power = state.power !== undefined ? state.power : 1;
     const sleeping = !!state.sleeping;
+    const nowMs = performance.now();
+    const heart = heartbeat(nowMs);
 
     const gx = gem.position.x;
     const gy = gem.position.y;
@@ -291,6 +464,11 @@ export function initScene(canvas) {
     whiteLight.intensity = 0.5 * lightPower;
     ambient.intensity = 0.2 * (0.15 + 0.85 * power);
 
+    // Fade dos adereços de humor + atenuação por energia/sono
+    zenMix = THREE.MathUtils.damp(zenMix, visualMode === 'zen' ? 1 : 0, 2.4, delta);
+    excMix = THREE.MathUtils.damp(excMix, visualMode === 'excited' ? 1 : 0, 3, delta);
+    const dimmer = (0.1 + 0.9 * power) * (sleeping ? 0.35 : 1);
+
     // Tint do Ico_Eye por cima da paleta da personalidade (que já está nas
     // próprias COLORS via setPalette)
     siteTintMix = THREE.MathUtils.damp(siteTintMix, siteTintColor ? 1 : 0, 3, delta);
@@ -303,26 +481,103 @@ export function initScene(canvas) {
       tintMultiplier.b * scalarPower
     );
 
-    // Emissive pulsa entre as duas cores-âncora da paleta atual
-    const mood = (Math.sin(t * 0.18) + 1) / 2;
+    // Emissive pulsa entre as duas cores-âncora da paleta atual. A frequência
+    // acompanha o humor: quase parada no Zen, acelerada no Excited (e lá o
+    // heartbeat ainda soma um latejo por cima).
+    moodPhase += delta * 0.18 * (1 - zenMix * 0.65) * (1 + excMix * 3.2);
+    const mood = (Math.sin(moodPhase) + 1) / 2;
     emissiveTint.lerpColors(COLORS[0], COLORS[2], mood);
     if (siteTintColor && siteTintMix > 0.001) emissiveTint.lerp(siteTintColor, siteTintMix);
+    if (transBurst > 0.001) emissiveTint.lerp(WHITE, transBurst * 0.6); // flash da transição
     material.emissive.copy(emissiveTint);
     const baseEmissive = sleeping
       ? 0.12 + (Math.sin(t * 1.2) + 1) * 0.05
       : 0.55;
-    material.emissiveIntensity = THREE.MathUtils.damp(
-      material.emissiveIntensity,
+    emissiveCur = THREE.MathUtils.damp(
+      emissiveCur,
       baseEmissive * (0.04 + 0.96 * power),
       2,
       delta
     );
+    material.emissiveIntensity =
+      emissiveCur + transBurst * 1.1 + (sleeping ? 0 : heart * 0.28 * excMix);
 
+    // Soco de escala da transição (no mesh interno — não briga com a escala
+    // do group, que é do movimento): incha no estouro pro Excited, "inspira"
+    // encolhendo a caminho do Zen.
+    const punch = transBurst * (visualMode === 'excited' ? 0.16 : visualMode === 'zen' ? -0.18 : -0.1);
+    mesh.scale.setScalar(1 + punch);
+
+    // Casca de arame: some no Zen (orbe liso), esquenta e pulsa no Excited
+    edgeMat.color.copy(EDGE_BASE).lerp(EDGE_HOT, excMix);
+    edgeMat.opacity = (0.18 * (1 - zenMix) + 0.3 * excMix * (0.5 + 0.5 * heart)) * dimmer;
+    edges.scale.setScalar((1 + excMix * heart * 0.05) * (1 + punch));
+
+    // Zen: anéis precessam devagar, vagalumes orbitam em paz
+    if (zenMix > 0.003) {
+      zenGroup.visible = true;
+      zenGroup.scale.setScalar(0.55 + 0.45 * zenMix); // crescem junto com o fade
+      zenGroup.rotation.y += delta * 0.16;
+      ring1.rotation.z += delta * 0.05;
+      ring2.rotation.z -= delta * 0.04;
+      ringMat1.opacity = 0.5 * zenMix * dimmer;
+      ringMat2.opacity = 0.34 * zenMix * dimmer;
+      moteMat.opacity = 0.85 * zenMix * dimmer;
+      const mp = moteGeo.attributes.position.array;
+      for (let i = 0; i < MOTE_COUNT; i++) {
+        const sd = moteSeeds[i];
+        sd.ang += delta * sd.speed;
+        mp[i * 3] = Math.cos(sd.ang) * sd.radius;
+        mp[i * 3 + 1] = Math.sin(t * 0.4 + sd.phase) * sd.yAmp;
+        mp[i * 3 + 2] = Math.sin(sd.ang) * sd.radius;
+      }
+      moteGeo.attributes.position.needsUpdate = true;
+    } else {
+      zenGroup.visible = false;
+    }
+
+    // Excited: faíscas tremem rápido por entre os espinhos, no compasso do
+    // heartbeat (opacidade e tamanho latejam junto)
+    if (excMix > 0.003) {
+      sparks.visible = true;
+      sparkMat.opacity = (0.5 + 0.4 * heart) * excMix * dimmer;
+      sparkMat.size = 0.2 + heart * 0.08;
+      const sp = sparkGeo.attributes.position.array;
+      for (let i = 0; i < SPARK_COUNT; i++) {
+        const sd = sparkSeeds[i];
+        sd.ang += delta * sd.speed;
+        const r = sd.radius + Math.sin(t * sd.wob + sd.phase) * 0.25;
+        sp[i * 3] = Math.cos(sd.ang) * r + (Math.random() - 0.5) * 0.12;
+        sp[i * 3 + 1] = Math.sin(sd.ang * 1.7 + sd.phase) * sd.yAmp + (Math.random() - 0.5) * 0.12;
+        sp[i * 3 + 2] = Math.sin(sd.ang) * r + (Math.random() - 0.5) * 0.12;
+      }
+      sparkGeo.attributes.position.needsUpdate = true;
+    } else {
+      sparks.visible = false;
+    }
+
+    // Onda de choque da transição de humor
+    if (shockwave) {
+      const p = (nowMs - shockwave.start) / shockwave.dur;
+      if (p >= 1) {
+        shockwave = null;
+        shockRing.visible = false;
+      } else {
+        shockRing.visible = true;
+        shockRing.scale.setScalar(0.6 + p * 2.6);
+        shockMat.color.copy(shockwave.color);
+        shockMat.opacity = (1 - p) * 0.8;
+      }
+    }
+
+    // Transição de cor por face: quase congela no Zen (calma), dança no
+    // Excited (as cores correm pelo corpo)
+    const colorPace = 2.0 * (1 - zenMix * 0.72) * (1 + excMix * 1.6);
     const colorAttr = gemGeo.attributes.color;
     for (let f = 0; f < faceCount; f++) {
       const target = COLORS[faceTargetIdx[f]];
       const c = faceColors[f];
-      c.lerp(target, delta * faceSpeeds[f] * 2.0);
+      c.lerp(target, delta * faceSpeeds[f] * colorPace);
 
       const dr = c.r - target.r, dg = c.g - target.g, db = c.b - target.b;
       if (dr * dr + dg * dg + db * db < 0.001) {

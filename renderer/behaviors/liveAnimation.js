@@ -69,10 +69,13 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     !state.signatureAnim &&
     !state.sleeping && !state.dragging && !state.releaseFall &&
     !state.reloc && !state.stretch && !state.dizzy &&
-    personality.signature &&
+    // state.personality (não a captura do topo do frame): no frame em que o
+    // humor troca, a captura ainda é o humor antigo — armava uma Shimmy
+    // órfã já dentro do Normality
+    state.personality.signature &&
     now >= state.nextSignatureAt
   ) {
-    const sig = personality.signature;
+    const sig = state.personality.signature;
     state.signatureAnim = { start: now, sig };
     state.nextSignatureAt = now + (isExcited ? 6000 + Math.random() * 6000 : 25000 + Math.random() * 30000);
     logEvent('assinatura', sig.label);
@@ -130,8 +133,12 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   // Heartbeat: o corpo pulsa "tum-tum" enquanto persegue o mouse
   const heartbeatScale = excitedChasing && !state.sleeping ? heartbeatPulse(now) * 0.042 : 0;
 
-  // Glow do canvas acompanha o humor (CSS em index.html)
-  if (refs.canvasEl) refs.canvasEl.classList.toggle('excited-glow', isExcited);
+  // Glow do canvas acompanha o humor (CSS em index.html): rosa latejando no
+  // Excited, ciano respirando devagar no Zen
+  if (refs.canvasEl) {
+    refs.canvasEl.classList.toggle('excited-glow', isExcited);
+    refs.canvasEl.classList.toggle('zen-glow', state.mode === 'zen');
+  }
 
   // Coraçõezinhos flutuando: fluxo vivo nas fases de paquera, gotejar lento
   // no afterglow (derretido)

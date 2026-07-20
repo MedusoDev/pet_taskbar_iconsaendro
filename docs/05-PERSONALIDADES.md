@@ -120,9 +120,10 @@ volta quando o carinho para ou no teto. É o "rubor" pós-vergonha. Está em
 
 ## Como a forma do corpo entra nisso
 
-A mudança de forma (esfera no Zen, espinhos no Excited) NÃO está aqui — ela é dirigida
-pelo `movement.js`, que chama `setShapeMode(state.mode)` todo frame. A `personalityState`
-só troca o `state.mode`; a `scene.js` faz o resto. Ver [02](02-CENA-3D.md).
+A mudança de forma (orbe liso + anéis no Zen, espinhos latejando + faíscas no Excited,
+com a transição animada entre elas) NÃO está aqui — ela é dirigida pelo `movement.js`,
+que chama `setShapeMode(state.mode)` todo frame. A `personalityState` só troca o
+`state.mode`; a `scene.js` faz o resto. Ver [02](02-CENA-3D.md).
 
 Isso é bom saber: **a forma segue o `mode` automaticamente**. Se você criar um humor
 novo, decida no `setShapeMode` (em `scene.js`) qual forma ele usa.

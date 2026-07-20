@@ -254,7 +254,7 @@ function animate() {
     updateAlive(state, refs, deps, now, delta, t);
   }
 
-  setShapeMode(state.mode); // forma acompanha o humor (zen=arredonda, excited=eriça)
+  setShapeMode(state.mode); // forma acompanha o humor (zen=orbe liso+anéis, excited=espinhos latejando)
   updateVisuals(t, delta, { power: state.power, sleeping: state.sleeping });
   renderer.render(scene, camera);
 }

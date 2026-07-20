@@ -89,47 +89,84 @@ aleatória por face, pra não abrirem todas igual).
 
 ---
 
-## Mudança de forma por humor: o morph — linhas ~111–160 e dentro do `applyUnfold`
+## Mudança de forma por humor: o morph — linhas ~130–200 e dentro do `applyUnfold`
 
-Esta é a parte que faz o corpo **tensionar e relaxar** conforme o humor (foi a
-adição mais recente). A ideia central:
+Cada humor tem uma **forma própria de verdade**, não só uma tensão:
 
-> O corpo é SEMPRE o icosaedro (a identidade do pet), mas deforma:
-> **Zen** arredonda em direção a uma esfera; **Excited** se eriça (espinhos).
+> O corpo é SEMPRE o icosaedro (a identidade do pet), mas:
+> **Zen** vira um **orbe liso** — esfera completa, com sombreamento suave (as
+> facetas somem visualmente) e a casca de arame apagada;
+> **Excited** se eriça em **espinhos que latejam** no ritmo do heartbeat.
 
-Como funciona, em 4 peças:
+Como funciona:
 
 1. **Dois "deltas" por vértice**, pré-calculados no init a partir dos MESMOS 240
    vértices:
-   - `dSphere[i]` = (posição na esfera − posição no ico). A versão esfera é cada
-     vértice puxado pro raio.
+   - `dSphere[i]` = (posição na esfera − posição no ico). Esfera completa — o
+     "liso" de verdade vem do blend de normais (abaixo).
    - `dSpiky[i]` = empurrão pra fora ao longo da normal, com amplitude irregular
      (~60% das faces viram espinho, o resto fica quase parado).
 
 2. **Um escalar contínuo `shapeCur`** que vai de **−1 a +1**:
-   - `−1` = esfera (zen)
+   - `−1` = orbe (zen)
    - `0` = icosaedro puro (normality)
    - `+1` = espinhos (excited)
 
    Como qualquer transição **passa por 0**, ir de um humor pro outro cruza o
    icosaedro no meio e nunca dá um "pop" (salto visual).
 
-3. **`setShapeMode(mode)`** (chamado todo frame pelo `movement.js`) só ajusta o
-   `shapeTarget` (−1/0/+1) conforme o humor. É idempotente.
+3. **`setShapeMode(mode)`** (chamado todo frame pelo `movement.js`) detecta a
+   troca de humor e arma a **timeline da transição** (`morphAnim`): `shapeCur`
+   viaja de onde está até o alvo com uma **ease com a cara do destino** —
+   `easeOutBack` (overshoot elástico: os espinhos passam do ponto e assentam)
+   pro Excited, `easeInOutSine` (seda, 2.3s) pro Zen, cubic neutro pro
+   Normality. Junto viaja o `transBurst` (0→1→0), o envelope do "estouro":
+   - **unfold extra** — as facetas explodem no meio do caminho e reassentam
+     já na forma nova;
+   - **flash branco** no emissive;
+   - **soco de escala** no mesh interno (incha pro Excited, "inspira"
+     encolhendo pro Zen);
+   - **anel de choque** (`shockRing`) que expande e some na cor do humor de
+     destino (lilás/ciano/rosa).
 
 4. Dentro do `applyUnfold`, a cada frame:
-   - `shapeCur` persegue `shapeTarget` suavemente (usando o relógio real, já que a
-     função não recebe `delta`).
-   - Monta a base morfada: `morphedBase = basePos + (shapeCur<0 ? dSphere*|shapeCur| : dSpiky*shapeCur)`.
-   - Aí sim aplica o unfold em cima dessa base.
-   - **Recalcula as normais** (`computeVertexNormals`) SÓ enquanto a forma está
-     mudando — porque aí a orientação das faces muda de verdade e a luz precisa
-     acompanhar. Parado, custo zero.
+   - avança a timeline (se houver) e calcula `sEff` — no lado dos espinhos,
+     `shapeCur` é modulado pelo heartbeat (é o latejo);
+   - monta a base morfada: `morphedBase = basePos + (sEff<0 ? dSphere*|sEff| : dSpiky*sEff)`;
+   - aplica o unfold em cima dessa base (`disp + transBurst`);
+   - **recalcula as normais** (`computeVertexNormals`) só enquanto a forma
+     mexe; **no lado do orbe**, as normais fundem pra **radial** na mesma
+     proporção (`k = |sEff|`) — é isso que apaga as facetas e deixa o Zen com
+     cara de bola de vidro. Parado no ico, custo zero.
 
-> **Onde mexer:** quer a esfera mais "bola"? Aumente o `0.9` no cálculo do `dSphere`.
-> Quer espinhos maiores ou mais numerosos? Mexa no `0.6` (fração de faces que
-> espetam) e no `(0.35 + ...*0.65)` (amplitude) dentro do loop do `dSpiky`. Quer que
-> a transição seja mais rápida/lenta? O `2.6` no `Math.exp(-2.6 * dt)`.
+> **Onde mexer:** espinhos maiores/mais numerosos = o `0.6` (fração) e o
+> `(0.35 + ...*0.65)` (amplitude) no loop do `dSpiky`. Duração/ease da
+> transição = o objeto `morphAnim` dentro do `setShapeMode`. Força do estouro =
+> `burstAmp`. Latejo dos espinhos = o `(0.86 + 0.14 * heartbeat)` no
+> `applyUnfold`.
+
+---
+
+## Adereços por humor: anéis, vagalumes e faíscas — logo depois das `edges`
+
+Cada humor traz **companhia visual própria**, tudo filho do `gem` (acompanha
+posição/escala do corpo, mas NÃO a rotação do mesh):
+
+- **Zen** — `zenGroup`: dois **anéis "ensō"** (torus finos ciano/verde-água)
+  inclinados, em precessão lenta, + 12 **vagalumes** (`Points` com textura
+  radial gerada em canvas, blending aditivo) orbitando devagar e ondulando no
+  Y. Entram crescendo junto com o fade.
+- **Excited** — `sparks`: 20 **faíscas** rosas tremendo rápido por entre os
+  espinhos; opacidade e tamanho latejam com o heartbeat.
+- **Transição** — `shockRing`: o anel de choque descrito acima (plano XY, de
+  frente pra câmera ortográfica).
+
+O fade é feito por dois escalares amortecidos no `updateVisuals` (`zenMix` /
+`excMix`) — a troca nunca corta seco, e os adereços escurecem junto com o
+`power`/sono (`dimmer`). Os **ritmos contínuos também acompanham o humor**: a
+transição de cor das faces quase congela no Zen e dança no Excited
+(`colorPace`), e o pulso do emissive desacelera no Zen e bate com o coração no
+Excited (`moodPhase`).
 
 ---
 
@@ -171,13 +208,16 @@ luz branca fraca de frente e uma ambiente.
 
 ---
 
-## A casca de arame (edges) — linhas ~142–153
+## A casca de arame (edges)
 
 Um `IcosahedronGeometry` levemente maior, transformado em `EdgesGeometry` (só as
-arestas), lilás e bem transparente. Ela **nunca desdobra nem muda de forma** — fica
-como "memória do sólido verdadeiro" flutuando por cima do corpo tensionado. É de
-propósito: dá um charme e ancora a identidade icosaédrica mesmo quando o corpo virou
-esfera ou espinho.
+arestas). Ela **nunca desdobra nem muda de forma** — é a "memória do sólido
+verdadeiro" — mas agora **reage ao humor** no `updateVisuals`:
+
+- **Normality** — lilás, opacidade 0.18 (o visual clássico);
+- **Zen** — **some** (fade pra 0): o orbe é liso, sem arestas;
+- **Excited** — esquenta pra **rosa** (`#FB7185`), fica mais opaca e **pulsa**
+  de escala/brilho com o heartbeat.
 
 Próximo: [03 – Estado e loop](03-ESTADO-E-LOOP.md).
 </content>

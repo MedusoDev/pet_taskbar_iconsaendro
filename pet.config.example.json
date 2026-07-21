@@ -1,6 +1,6 @@
 {
-  "apiKey": "sk-ant-SUACHAVEAQUI",
-  "model": "claude-opus-4-8",
+  "aiProvider": "ollama",
+  "ollamaModel": "llama3.2:3b",
   "groqApiKey": "gsk_SUACHAVEGROQAQUI",
   "petName": "Ico",
   "userName": "SeuNome"

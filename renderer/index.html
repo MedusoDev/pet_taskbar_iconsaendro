@@ -49,9 +49,31 @@
         }
       }
 
+      /* ── Camadas de UI (z-index) ──────────────────────────────────────
+         Todo elemento que segue o gem (liveAnimation.js) tem uma camada
+         fixa aqui, pra sobreposição nunca depender da ordem em que cada
+         módulo é inicializado. Prioridade crescente (o de cima sempre
+         cobre os de baixo):
+           10  #zzz, #site-icon, efeitos (effects.js: corações/gotas/blush)
+                — decoração ambiente, nunca bloqueia nada
+           20  #affection-bar        — medidor de carinho
+           30  #speech               — balão de fala comum
+           40  #pet-prompt           — balão de PERGUNTA (prompt.js):
+                sempre acima da fala comum
+           50  #pet-chat             — painel de chat (chat.js): nunca fica
+                atrás/embaixo de nenhum outro elemento
+         (o #pet-canvas não entra nessa lista: sem `position`, fica em fluxo
+         estático e é sempre pintado ANTES de qualquer elemento posicionado
+         acima, sem precisar de z-index.)
+         Fala comum e painel/pergunta também nunca aparecem juntos: enquanto
+         o chat está aberto ou a pergunta na tela, a classe `.suppressed`
+         (aplicada em liveAnimation.js) esconde o balão de fala visualmente,
+         sem cortar a fila/cooldown de speech.js. */
+
       /* "z z z" flutuando ao lado do gem enquanto dorme */
       #zzz {
         position: absolute;
+        z-index: 10;
         bottom: 64px;
         left: 0; /* movido via JS para acompanhar o gem */
         display: none;
@@ -81,6 +103,7 @@
       /* Ico_Eye: ícone flutuando acima do gem conforme o site detectado */
       #site-icon {
         position: absolute;
+        z-index: 10;
         bottom: 74px;
         left: 0; /* movido via JS para acompanhar o gem */
         display: none;
@@ -100,6 +123,7 @@
          do chat e os avisos de sistema são mais longos que as falas curtas) */
       #speech {
         position: absolute;
+        z-index: 30;
         bottom: 78px;
         left: 0; /* movido via JS para acompanhar o gem */
         transform: translateX(-50%) translateY(4px);
@@ -123,6 +147,14 @@
       #speech.visible {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
+      }
+      /* Prioridade de UI: pergunta ou chat na tela → a fala comum cede o
+         canto (liveAnimation.js liga esta classe todo frame). A fila e o
+         cooldown de speech.js continuam rodando por baixo — só o desenho
+         para; ela reaparece sozinha assim que o outro elemento fecha. */
+      #speech.suppressed {
+        opacity: 0 !important;
+        transform: translateX(-50%) translateY(4px) !important;
       }
     </style>
   </head>

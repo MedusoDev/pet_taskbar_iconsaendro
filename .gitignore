@@ -7,3 +7,7 @@ pet.config.json
 conversationLog.json
 elec_out.log
 elec_err.log
+
+# Backups automáticos da aba "Cérebro e Falas" (janela de Configurações) —
+# um por arquivo editado, sobrescrito a cada save (ver main/sourceEditor.js)
+*.bak

@@ -2,18 +2,17 @@
 // tique de impaciência, espreguiçada, shutdown ou sono. E o inverso: quando
 // qualquer input chega, zera o relógio e acorda o pet se preciso.
 import { scheduleNextRelocate, groundAtX } from './wander.js';
+import { liveConfig } from './liveConfig.js';
 
-const REST_AT = 14;      // tiques de impaciência
-const STRETCH_AT = 32;   // espreguiçada (uma vez por ciclo)
-const ZEN_AT = 60;       // 1min parado → entra no modo Zen (uma vez por ciclo)
-const SLEEP_AT = 65;     // dorme (só depois do ciclo de Zen já ter acontecido)
-const SHUTDOWN_MIN = 30; // evento shutdown: sorteado entre 30 e 50s parado
+// Os tempos em si (REST_AT, STRETCH_AT, ZEN_AT, SLEEP_AT, SHUTDOWN_MIN) agora
+// vivem em liveConfig.boredom — editáveis ao vivo pela janela de
+// Configurações (ver behaviors/settingsBridge.js). Lidos aqui a cada uso.
 
 export function resetBoredom(state, now) {
   state.lastInput = now;
   state.stretchDone = false;
   state.shutdownDone = false;
-  state.shutdownAt = SHUTDOWN_MIN + Math.random() * 20;
+  state.shutdownAt = liveConfig.boredom.SHUTDOWN_MIN + Math.random() * 20;
   state.nextTickAt = 0;
 }
 
@@ -71,13 +70,13 @@ export function createBoredomClock({ logEvent, speak, personalityCtl }) {
 
     // 1min parado → medita (uma vez por ciclo de idle; quando o zen termina,
     // o idle continua e a próxima parada é o sono)
-    if (!state.zenCycleDone && idleSec >= ZEN_AT) {
+    if (!state.zenCycleDone && idleSec >= liveConfig.boredom.ZEN_AT) {
       state.zenCycleDone = true;
       personalityCtl.enterZen(now);
       return;
     }
 
-    if (idleSec >= SLEEP_AT) {
+    if (idleSec >= liveConfig.boredom.SLEEP_AT) {
       state.sleeping = true;
       logEvent('dormiu', `depois de ${Math.round(idleSec)}s parado`);
       speak('sleep');
@@ -85,12 +84,12 @@ export function createBoredomClock({ logEvent, speak, personalityCtl }) {
       state.shutdownDone = true;
       state.shutdown = { start: now, vy: 0, falling: false, bounces: 0, startled: false };
       logEvent('shutdown', 'o bixinho puxou a alavanca...');
-    } else if (!state.stretchDone && !state.stretch && idleSec >= STRETCH_AT) {
+    } else if (!state.stretchDone && !state.stretch && idleSec >= liveConfig.boredom.STRETCH_AT) {
       state.stretch = { start: now };
       state.stretchDone = true;
       state.tick = null;
       logEvent('espreguiçada');
-    } else if (!state.stretch && idleSec >= REST_AT) {
+    } else if (!state.stretch && idleSec >= liveConfig.boredom.REST_AT) {
       if (state.nextTickAt === 0) state.nextTickAt = now + (4000 + Math.random() * 5000);
       if (now >= state.nextTickAt && !state.tick) {
         state.tick = { type: Math.floor(Math.random() * 2), start: now };

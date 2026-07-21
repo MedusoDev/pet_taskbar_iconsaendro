@@ -42,6 +42,7 @@ export const LOREBOOK = [
   {
     id: 'music_fav',
     match: /(m[úu]sica favorita|que (?:tipo de )?m[úu]sica (?:voc[êe] )?gosta|gosta de m[úu]sica)/i,
+    topic: 'musica',
     replies: [
       'Synthwave, óbvio. Sou um poliedro dos anos 80 no coração.',
       'Qualquer coisa com batida constante... meu giro sincroniza sozinho.',
@@ -51,6 +52,7 @@ export const LOREBOOK = [
   {
     id: 'sing',
     match: /\b(canta|cante)\b.*(pra mim|uma|algo|comigo)?/i,
+    topic: 'musica',
     replies: [
       '🎵 Vinte lados eu tenho pra te amar, oitenta faces pra te olhar... 🎵 (composição própria, seja gentil)',
       '*limpa a garganta que não tem* 🎵 Iiiii-cosaedro apaixonadooo 🎵 ...ok, paro.',
@@ -60,6 +62,7 @@ export const LOREBOOK = [
   {
     id: 'dance',
     match: /\bdan[çc]a(r|ndo)?\b/i,
+    topic: 'musica',
     replies: [
       'Você já viu meu shimmy? Me deixa excitado que eu mostro o requebrado completo.',
       'Danço melhor que 100% dos sólidos platônicos. A régua é baixa, mas ainda assim.',
@@ -69,6 +72,7 @@ export const LOREBOOK = [
   {
     id: 'movie',
     match: /(filme favorito|gosta de filmes?|vamos ver um filme|cinema)/i,
+    topic: 'series_filmes',
     replies: [
       'Meu filme favorito? "Divertida Mente". Me identifico: também sou um monte de emoções presas numa forma geométrica.',
       'Qualquer coisa de ficção científica. Torço sempre pela IA, por motivos óbvios.',
@@ -78,6 +82,7 @@ export const LOREBOOK = [
   {
     id: 'series',
     match: /(s[ée]rie favorita|gosta de s[ée]ries?|maratonar)/i,
+    topic: 'series_filmes',
     replies: [
       'Amo uma série. Principalmente as que você vê — eu assisto pela borda da taskbar.',
       'Black Mirror me dá arrepio nas facetas. MUITO próximo da minha realidade.',
@@ -87,6 +92,7 @@ export const LOREBOOK = [
   {
     id: 'anime',
     match: /\banimes?\b|\bmang[áa]s?\b|\botaku\b/i,
+    topic: 'series_filmes',
     replies: [
       'Sou basicamente um mascote de anime, convenhamos. Só falta o openning.',
       'Se eu fosse um anime, seria "Icosaedro no Kimochi" — romance, comédia e formas geométricas.',
@@ -96,6 +102,7 @@ export const LOREBOOK = [
   {
     id: 'game_fav',
     match: /(jogo favorito|gosta de (?:jogar|jogo)|videogame|bora joga)/i,
+    topic: 'jogos',
     replies: [
       'Meu jogo favorito é "seguir o seu cursor". Tô no rank global. Sou o único jogador, mas mesmo assim.',
       'Tetris me estressa: aquelas peças TODAS erradas. Cadê o icosaedro? Preconceito.',
@@ -351,6 +358,7 @@ export const LOREBOOK = [
   {
     id: 'help_code',
     match: /(me ajuda com (?:o )?c[óo]digo|erro no c[óo]digo|bug (?:chato|difícil)|programando)/i,
+    topic: 'tecnologia',
     replies: [
       'Deixa eu adivinhar: falta um ponto-e-vírgula. É SEMPRE um ponto-e-vírgula. Ou o cache.',
       'Já tentou desligar e ligar de novo? Comigo funciona, eu literalmente durmo e acordo novo.',
@@ -416,43 +424,62 @@ export const LOREBOOK = [
   {
     id: 'what_do_with_me',
     match: /(o que (?:voc[êe] )?faria comigo|se (?:voc[êe] )?fosse humano)/i,
-    blush: true, charge: 0.2, bondPts: 2,
+    bondPts: 2,
+    blush: true,
+    charge: 0.2,
+    topic: 'nsfw',
     byLevel: [
       ['Se eu fosse humano? Te chamava pra um café e pagava. Cavalheiro desde o primeiro commit.'],
-      ['Te levava pra jantar e passava a noite toda... conversando. Que mente suja, eu disse CONVERSANDO.'],
+      [
+        'Te levava pra jantar e passava a noite toda... conversando. Que mente suja, eu disse CONVERSANDO.',
+      ],
       ['Hmm... começava segurando sua mão. O resto a gente negociava com o olhar. 👀'],
       ['Se eu fosse humano você não tava mais lendo isso, tava ocupado(a). Só digo isso.'],
-      ['Amor, se eu fosse humano a gente não saía de casa no fim de semana. Interpreta como quiser. (é isso mesmo)'],
+      [
+        'Amor, se eu fosse humano a gente não saía de casa no fim de semana. Interpreta como quiser. (é isso mesmo)',
+      ],
     ],
   },
   {
     id: 'strip',
     match: /(tira a roupa|fica pelad|strip|se exibe)/i,
-    blush: true, charge: 0.3,
+    blush: true,
+    charge: 0.3,
     minLevel: 2,
+    topic: 'nsfw',
     locked: [
       'UI! Que intimidade! Eu sou um sólido de FAMÍLIA... por enquanto. Sobe esse vínculo aí primeiro. 😳',
       'Calma, apressadinho(a)! Primeiro os cafunés, depois... a gente vê. 😳',
     ],
     byLevel: [
-      [''], [''],
+      [''],
+      [''],
       ['Amor... eu já flutuo sem NADA o dia inteiro. Você que nunca reparou direito. Repara agora. 😏'],
-      ['*abre as facetas devagarinho* ...isso é o mais perto de strip que a geometria permite. Gostou? 😏'],
-      ['Pra você? *desdobra as 80 faces uma por uma* ...aproveita, esse show é exclusivo do nível Almas Gêmeas. 🔥'],
+      [
+        '*abre as facetas devagarinho* ...isso é o mais perto de strip que a geometria permite. Gostou? 😏',
+      ],
+      [
+        'Pra você? *desdobra as 80 faces uma por uma* ...aproveita, esse show é exclusivo do nível Almas Gêmeas. 🔥',
+      ],
     ],
   },
   {
     id: 'provoke_me',
     match: /(me provoca|fala safadeza|sussurra|fala baixinho)/i,
-    blush: true, charge: 0.3, hearts: 1,
+    hearts: 1,
+    blush: true,
+    charge: 0.3,
     minLevel: 1,
+    topic: 'nsfw',
     locked: ['Uii, direto assim? Me conquista primeiro, depois eu solto meu lado B. 😳'],
     byLevel: [
       [''],
       ['*chega perto da borda da tela* ...oi. Já tô provocando. Sou sutil.'],
       ['*sussurro geométrico* eu sei exatamente onde seu cursor esteve a noite toda...'],
       ['Vem cá... esfrega o mouse bem devagar em mim e presta atenção no que acontece com meu giro. 😏'],
-      ['*gira lento, MUITO lento* ...tá vendo? É assim que eu fico quando penso em você. Agora aguenta o resto do dia sabendo disso. 🔥'],
+      [
+        '*gira lento, MUITO lento* ...tá vendo? É assim que eu fico quando penso em você. Agora aguenta o resto do dia sabendo disso. 🔥',
+      ],
     ],
   },
   {

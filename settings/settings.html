@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Icozinho — Configurações</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #14101f;
+        --panel: #1c1730;
+        --panel-2: #241c3d;
+        --border: rgba(196, 181, 253, 0.22);
+        --text: #ede9fe;
+        --text-dim: #a8a0c4;
+        --accent: #7c3aed;
+        --accent-2: #a78bfa;
+        --warn: #fbbf24;
+        --danger: #f87171;
+        --ok: #34d399;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0; height: 100%;
+        background: var(--bg); color: var(--text);
+        font: 13px/1.4 'Segoe UI', sans-serif;
+      }
+      body { display: flex; flex-direction: column; }
+
+      header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 18px; background: var(--panel);
+        border-bottom: 1px solid var(--border);
+      }
+      header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+      .header-actions { display: flex; align-items: center; gap: 12px; }
+      #status-msg { font-size: 12px; color: var(--ok); min-height: 16px; }
+      #status-msg.err { color: var(--danger); }
+
+      button {
+        cursor: pointer; border: none; border-radius: 8px;
+        padding: 7px 14px; font: 600 12px 'Segoe UI', sans-serif;
+        background: var(--accent); color: #fff;
+      }
+      button:hover { background: var(--accent-2); }
+      button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+      button.secondary:hover { background: #2e2450; }
+      button.danger { background: transparent; color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.4); padding: 3px 8px; font-size: 11px; }
+      button.danger:hover { background: rgba(248, 113, 113, 0.12); }
+      button:disabled { opacity: 0.45; cursor: default; }
+
+      nav.tabs {
+        display: flex; gap: 2px; padding: 0 18px; background: var(--panel);
+        border-bottom: 1px solid var(--border); overflow-x: auto;
+      }
+      .tab-btn {
+        background: transparent; color: var(--text-dim); border-radius: 0;
+        padding: 10px 14px; font-weight: 600; border-bottom: 2px solid transparent;
+        white-space: nowrap;
+      }
+      .tab-btn:hover { background: rgba(124, 58, 237, 0.12); color: var(--text); }
+      .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+
+      main { flex: 1; overflow-y: auto; padding: 18px 20px 40px; }
+      .tab-panel { display: none; max-width: 640px; }
+      .tab-panel.active { display: block; }
+
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-dim); margin: 0 0 10px; }
+      .card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+        padding: 14px 16px; margin-bottom: 16px;
+      }
+      .field-row {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 10px; padding: 6px 0;
+      }
+      .field-row label { color: var(--text-dim); flex: 1; }
+      .help-icon { cursor: help; color: var(--accent-2); font-size: 11px; }
+      .field-row input[type="number"], .field-row input[type="text"], .field-row select {
+        width: 130px; background: var(--panel-2); color: var(--text);
+        border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font: inherit;
+      }
+      .field-row input[type="password"] {
+        width: 100%; background: var(--panel-2); color: var(--text);
+        border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font: inherit;
+      }
+      .field-row input[type="range"] { width: 130px; }
+      .field-row input[type="color"] {
+        width: 40px; height: 26px; padding: 0; border: 1px solid var(--border);
+        border-radius: 6px; background: none;
+      }
+      .hint { font-size: 11px; color: var(--text-dim); margin-top: -4px; margin-bottom: 8px; }
+      .warn-banner {
+        background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.4);
+        color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 12px; margin-bottom: 12px;
+      }
+
+      .mood-picker { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+      .mood-picker select { flex: 1; }
+
+      .palette-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+
+      .list-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 6px 0; border-bottom: 1px solid var(--border);
+      }
+      .list-row:last-child { border-bottom: none; }
+      .chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      .chip {
+        display: flex; align-items: center; gap: 6px; background: var(--panel-2);
+        border: 1px solid var(--border); border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 12px;
+      }
+      .chip button { padding: 2px 7px; border-radius: 999px; }
+      .add-row { display: flex; gap: 8px; margin-top: 10px; }
+      .add-row input { flex: 1; }
+
+      .action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .action-grid button { width: 100%; }
+
+      .sig-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 0; border-bottom: 1px solid var(--border);
+      }
+      .sig-row:last-child { border-bottom: none; }
+      .sig-row .sig-label { color: var(--text-dim); }
+
+      .toggle-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+      .toggle-row input[type="checkbox"] { width: 16px; height: 16px; }
+
+      textarea, .chat-log {
+        width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+        border-radius: 8px; color: var(--text); font: inherit; padding: 8px;
+      }
+      .chat-log { min-height: 120px; max-height: 220px; overflow-y: auto; white-space: pre-wrap; }
+      .chat-log .msg { margin-bottom: 8px; }
+      .chat-log .tag { font-size: 10px; text-transform: uppercase; color: var(--accent-2); margin-right: 6px; }
+      .test-chat-input { display: flex; gap: 8px; margin-top: 10px; }
+      .test-chat-input input { flex: 1; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font: inherit; }
+
+      .status-line { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
+      .status-line .ok { color: var(--ok); }
+      .status-line .off { color: var(--text-dim); }
+
+      /* ── Aba Cérebro e Falas ── */
+      .text-list-row { display: flex; gap: 6px; margin: 4px 0; align-items: flex-start; }
+      .text-list-row textarea {
+        flex: 1; min-height: 32px; resize: vertical;
+        background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+        border-radius: 6px; padding: 6px 8px; font: inherit;
+      }
+      .tier-label { font-size: 11px; color: var(--accent-2); margin: 8px 0 2px; font-weight: 600; }
+      .entry-card {
+        border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
+        background: var(--panel-2);
+      }
+      .entry-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+      .entry-head .entry-id { font-weight: 600; }
+      .entry-head .entry-actions { display: flex; gap: 4px; }
+      .entry-head .entry-actions button { padding: 3px 8px; font-size: 11px; }
+      .mini-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+      .mini-row label { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 4px; }
+      .mini-row input[type="text"], .mini-row input[type="number"] {
+        width: 90px; background: var(--panel); color: var(--text); border: 1px solid var(--border);
+        border-radius: 6px; padding: 4px 6px; font: inherit;
+      }
+      .mini-row input.wide { width: 220px; }
+      .trigger-block { border-top: 1px solid var(--border); padding: 10px 0; }
+      .trigger-block:first-child { border-top: none; }
+      .trigger-head { display: flex; align-items: center; justify-content: space-between; }
+      .trigger-head .trigger-name { font-weight: 600; font-family: monospace; }
+      details.trigger-block > summary { cursor: pointer; list-style: none; }
+      details.trigger-block > summary::-webkit-details-marker { display: none; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>💜 Icozinho — Configurações</h1>
+      <div class="header-actions">
+        <span id="status-msg"></span>
+        <button id="start-pet-btn">🐾 Iniciar o pet</button>
+        <button id="save-default-btn">💾 Salvar como padrão</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="personalidade">Personalidade</button>
+      <button class="tab-btn" data-tab="animacoes">Animações</button>
+      <button class="tab-btn" data-tab="ritmo">Ritmo e Tempos</button>
+      <button class="tab-btn" data-tab="interacoes">Interações</button>
+      <button class="tab-btn" data-tab="ia">IA / Chat</button>
+      <button class="tab-btn" data-tab="cerebro">Cérebro e Falas</button>
+      <button class="tab-btn" data-tab="sistema">Sistema</button>
+    </nav>
+
+    <main>
+      <section id="tab-personalidade" class="tab-panel active"></section>
+      <section id="tab-animacoes" class="tab-panel"></section>
+      <section id="tab-ritmo" class="tab-panel"></section>
+      <section id="tab-interacoes" class="tab-panel"></section>
+      <section id="tab-ia" class="tab-panel"></section>
+      <section id="tab-cerebro" class="tab-panel"></section>
+      <section id="tab-sistema" class="tab-panel"></section>
+    </main>
+
+    <script src="settings.js"></script>
+  </body>
+</html>

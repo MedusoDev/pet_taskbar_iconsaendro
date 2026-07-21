@@ -25,7 +25,7 @@ Todo app Electron tem **dois lados que rodam separados** e só conversam por men
 │  • lê RAM/CPU do sistema    │         │  • reage ao mouse                │
 │  • vê a janela ativa (Eye)  │         │  • fala, anima, lembra           │
 │  • bandeja do sistema       │         │  • conversa (cérebro local)      │
-│  • chama a API do Claude    │         │                                  │
+│  • chama a API da Groq      │         │                                  │
 └─────────────────────────────┘         └──────────────────────────────────┘
 ```
 
@@ -102,7 +102,7 @@ Guarde esses dois conceitos — eles explicam 80% do "por que esse número está
 ```
 main.js                      processo principal (janela, sistema, IPC, tray, API)
 preload.js                   a ponte segura entre main e renderer
-pet.config.example.json      modelo de config (apiKey, nome...) — opcional
+pet.config.example.json      modelo de config (groqApiKey, nome...) — opcional
 
 renderer/
   index.html                 a página: canvas + divs de UI (zzz, fala, ícone) + CSS

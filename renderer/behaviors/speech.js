@@ -3,6 +3,13 @@
 // tempo espera na fila (texto livre/importante) ou é descartado (falas
 // ambientes de banco, que sempre voltam a acontecer). speak.text entra na
 // fila; speak(banco) só fala com o balão livre.
+//
+// Prioridade de UI (ver liveAnimation.js e index.html): o painel de chat e o
+// balão de pergunta (prompt.js) ocupam o mesmo canto acima do gem que este
+// balão — nunca podem ficar escondidos atrás dele. `suppressBank` recusa
+// falas de banco novas enquanto um dos dois está ativo; o balão em si (fila
+// e cooldown inclusos) continua vivo por baixo e some visualmente via CSS
+// (classe `.suppressed`), sem perder o que já estava na fila.
 
 const SPEECH_COOLDOWN = 6000;  // ms mínimo entre falas de banco
 const SPEECH_DURATION = 3500;  // ms visível na tela (falas curtas de banco)
@@ -14,7 +21,7 @@ const QUEUE_MAX = 2;           // fila curta: mais que isso vira ruído
 // antes de dar tempo de ler.
 const FORCE_MIN_GAP = 1500;
 
-export function createSpeech({ speechEl, logEvent, getPersonality, canSpeak }) {
+export function createSpeech({ speechEl, logEvent, getPersonality, canSpeak, suppressBank }) {
   let lastSpeakAt = 0;
   let holdUntil = 0;      // até quando a fala atual não pode ser substituída
   let hideTimer = null;
@@ -58,6 +65,10 @@ export function createSpeech({ speechEl, logEvent, getPersonality, canSpeak }) {
     // Apagado/caindo (shutdown/nocaute) ele NÃO fala — qualquer evento
     // assíncrono (site mudou, RAM alta, level-up) espera ele religar.
     if (canSpeak && !canSpeak()) return;
+    // Chat aberto ou pergunta na tela: fala de banco cede o balão (prioridade
+    // de UI — ver liveAnimation.js) em vez de gastar cooldown numa fala que
+    // ninguém vai ver.
+    if (suppressBank && suppressBank()) return;
     // Balão ocupado: fala ambiente é descartada (sempre volta a acontecer)
     if (busy()) return;
     const now = performance.now();

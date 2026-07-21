@@ -1,5 +1,5 @@
 // AI_Live — banco de personalidades, sem IA por enquanto (isso fica pra
-// depois, possivelmente plugando a API da Claude aqui no mesmo lugar).
+// depois, possivelmente plugando uma API de verdade aqui no mesmo lugar).
 //
 // Cada personalidade vive no seu próprio arquivo em personalities/ e exporta:
 //   id, name    — identidade

@@ -21,6 +21,7 @@ import { setupSysMonitor } from './behaviors/sysMonitor.js';
 import { createChat } from './behaviors/chat.js';
 import { createPetMemory } from './behaviors/petMemory.js';
 import { setupCuriosity } from './behaviors/curiosity.js';
+import { createSettingsBridge } from './behaviors/settingsBridge.js';
 
 const canvas = document.getElementById('pet-canvas');
 const zzzEl = document.getElementById('zzz');
@@ -72,11 +73,16 @@ function getGemPos() {
 // ─── AI_Live: máquina de personalidade (Normality ⇄ Zen ⇄ ...) ─────────────
 // canSpeak: apagado/caindo (shutdown/nocaute) o pet fica MUDO — eventos
 // assíncronos (site mudou, RAM alta, level-up) esperam ele religar.
+// suppressBank: chat aberto ou balão de pergunta na tela → fala de banco cede
+// o balão pra quem tem prioridade (ver speech.js e liveAnimation.js). `prompt`
+// só é criado mais abaixo, mas essa função só roda depois do boot completo
+// (dentro do loop/eventos), então a referência já estará pronta.
 const speak = createSpeech({
   speechEl,
   logEvent,
   getPersonality: () => state.personality,
   canSpeak: () => !state.shutdown,
+  suppressBank: () => state.chatOpen || (prompt && prompt.visible),
 });
 const personalityCtl = createPersonalityState({ state, setPalette, setTint, logEvent, speak });
 setPalette(state.personality.palette);
@@ -125,6 +131,37 @@ const sysMonitor = setupSysMonitor({ state, speak, logEvent, effects, getGemPos 
 
 // ─── AI_Brain: cérebro conversacional local (lorebook + memórias) ───────────
 const brain = createBrain({ state, bond, sysMonitor, petMemory });
+
+// ─── Status da IA (chave configurada? qual modelo?) — acompanhado aqui à
+//    parte de chat.js pra alimentar tanto o painel de chat real quanto o
+//    "testar mensagem" da janela de Configurações (settingsBridge.js) ──
+let aiStatus = { available: false, model: null };
+if (window.petAPI && window.petAPI.onAIStatus) {
+  window.petAPI.onAIStatus((status) => {
+    aiStatus = status;
+  });
+}
+
+// ─── Janela de Configurações/Playground: aplica em tempo real tudo que os
+//    docs (09-RECEITAS.md) listam como "onde mexer" — ver settingsBridge.js
+//    e settings/. A janela em si só existe se aberta pela bandeja; este
+//    bridge fica escutando comandos dela via IPC (main.js faz o relé). ──
+const settingsBridge = createSettingsBridge({
+  state,
+  personalityCtl,
+  speak,
+  logEvent,
+  setPalette,
+  brain,
+  bond,
+  getAiStatus: () => aiStatus,
+});
+
+// pet.tuning.json salvo (ver main.js "Salvar como padrão"): hidrata os
+// mesmos valores que a edição ao vivo usaria, uma vez no boot.
+if (window.petAPI && window.petAPI.onTuningConfig && settingsBridge) {
+  window.petAPI.onTuningConfig((cfg) => settingsBridge.applyTuningConfig(cfg));
+}
 
 // ─── Ico_Eye: o que o pet vê no navegador/apps ──────────────────────────────
 // O tint do site passa por state.siteTint: durante a zen_aura / transição

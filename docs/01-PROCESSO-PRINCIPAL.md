@@ -2,7 +2,7 @@
 
 O processo principal é o "gerente" do programa. Ele não desenha o pet — ele cria a
 janela onde o pet mora, cuida da bandeja, lê dados do Windows (mouse, RAM, janela
-ativa) e repassa tudo pro renderer. Também é ele quem fala com a API do Claude.
+ativa) e repassa tudo pro renderer. Também é ele quem fala com a API do Groq.
 
 Se você quer mudar **tamanho da janela, o que o pet "vê", de quanto em quanto tempo
 o sistema é medido, a bandeja, ou a integração com a IA** — é aqui.
@@ -27,7 +27,7 @@ pode pedir ao main. Hoje o cardápio é:
 | `onActiveSite(cb)` | main → renderer | Recebe qual app/site está ativo (Ico_Eye) |
 | `onSysStats(cb)` | main → renderer | Recebe RAM/CPU/uptime (5s) |
 | `onAIStatus(cb)` | main → renderer | Diz se tem chave de API, nome do pet/usuário |
-| `sendChat(text, context)` | renderer → main | Manda mensagem pro Claude e espera a resposta |
+| `sendChat(text, context)` | renderer → main | Manda mensagem pra API e espera a resposta |
 | `log(line)` | renderer → main | Imprime uma linha no terminal (o "diário" do pet) |
 
 **Regra:** se você quiser que o renderer acesse algo novo do sistema (ex.: nome do
@@ -45,12 +45,12 @@ Sem o passo 2, a página simplesmente não enxerga.
 `%APPDATA%/Icozinho`, e ao lado do código pra dev). Tudo é opcional:
 
 ```json
-{ "apiKey": "sk-ant-...", "model": "claude-opus-4-8", "petName": "Ico", "userName": "..." }
+{ "groqApiKey": "gsk_...", "petName": "Ico", "userName": "..." }
 ```
 
-- **Sem `apiKey`** → o chat usa o **cérebro local** (offline). É o modo padrão.
-- **Com `apiKey`** → o chat usa o Claude de verdade.
-- `ANTHROPIC_API_KEY` no ambiente também vale como chave.
+- **Sem `groqApiKey`** → o chat usa o **cérebro local** (offline). É o modo padrão.
+- **Com `groqApiKey`** → o chat usa a Groq de verdade.
+- `GROQ_API_KEY` no ambiente também vale como chave.
 
 > O nome do app é fixado como `Icozinho` logo no começo (`app.setName`), ANTES de
 > qualquer coisa — isso garante que a pasta de dados seja a mesma rodando por
@@ -82,17 +82,15 @@ boot; a diferença entre duas leituras dá o uso do intervalo. Por isso a primei
 amostra sempre dá 0 (não tem com o que comparar) — daí o `sampleCpu()` "de aquecimento"
 lá embaixo antes de ligar o timer.
 
-### A API do Claude (linhas ~126–190)
+### A API da Groq (linhas ~126–190)
 
-- `PET_SYSTEM_PROMPT` — a **persona** do pet, em texto fixo. Fica estável de propósito
-  (bom pro cache de prompt do Claude). Regras: sempre PT-BR, máximo 2 frases, primeira
-  pessoa, usa o contexto entre colchetes. **Se você quer mudar a personalidade do pet
-  no modo com IA, é este texto que você edita.**
-- `chatHistory` — guarda as últimas 16 mensagens da sessão (some ao fechar).
-- `askClaude(text, context)` — monta a chamada. O **contexto volátil** (humor, RAM,
-  site...) viaja DENTRO da mensagem do usuário (`[contexto: ...]`), nunca no system
-  prompt — de novo, pra não estragar o cache. Se der erro, desfaz a última mensagem
-  do histórico e devolve `{ error }` pro renderer cair no cérebro local.
+- `PET_SYSTEM_PROMPT` — a **persona** do pet, em texto fixo. Regras: sempre PT-BR,
+  máximo 2 frases, primeira pessoa, usa o contexto entre colchetes. **Se você quer
+  mudar a personalidade do pet no modo com IA, é este texto que você edita.**
+- `askGroq(text, context)` — monta a chamada (formato OpenAI-compatible). O
+  **contexto volátil** (humor, RAM, site, tópico atual...) viaja DENTRO da mensagem
+  do usuário (`[contexto: ...]`), nunca no system prompt. Se der erro ou a resposta
+  vier vazia, devolve `{ error }` pro renderer cair no cérebro local.
 
 ### A janela em si (linhas ~192–288)
 
@@ -154,7 +152,7 @@ sysPoll (5s)       ── 'sys-stats' ───────▶ onSysStats    →
 ready              ── 'screen-config' ───▶ onScreenConfig→ state.screenConfig
 ready              ── 'ai-status' ───────▶ onAIStatus    → chat.js
 
-chat.js  ── sendChat(text,ctx) ──▶ 'chat-message' ──▶ askClaude() ──▶ resposta
+chat.js  ── sendChat(text,ctx) ──▶ 'chat-message' ──▶ askGroq() ──▶ resposta
 qualquer ── log(line) ──────────▶ 'pet-log' ──▶ console.log no terminal
 ```
 

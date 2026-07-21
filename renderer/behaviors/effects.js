@@ -7,8 +7,11 @@
 const DROP_COUNT = 14;
 
 const CSS = `
+  /* Camada 10 (ver "Camadas de UI" em index.html) pra todo elemento efêmero
+     abaixo: decoração ambiente, nunca deve bloquear fala/pergunta/chat. */
   .pet-drop {
     position: absolute;
+    z-index: 10;
     border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #ffffff, #e2e8f0);
     box-shadow: 0 0 6px rgba(255, 255, 255, 0.85);
@@ -25,6 +28,7 @@ const CSS = `
   /* Blush "///" — vergonha estampada na bochecha do gem */
   #pet-blush {
     position: absolute;
+    z-index: 10;
     left: 0;
     bottom: 0;
     transform: translateX(-50%) rotate(-14deg);
@@ -41,6 +45,7 @@ const CSS = `
   /* Coração flutuante: sobe balançando e some (modo Excited / flerte) */
   .pet-heart {
     position: absolute;
+    z-index: 10;
     pointer-events: none;
     font-size: var(--size);
     opacity: 0;
@@ -57,6 +62,7 @@ const CSS = `
   /* Anel de flash: onda circular que expande no clímax do respingo */
   .pet-ring {
     position: absolute;
+    z-index: 10;
     border-radius: 50%;
     border: 3px solid rgba(255, 255, 255, 0.9);
     box-shadow: 0 0 18px rgba(251, 113, 133, 0.8), inset 0 0 12px rgba(255, 255, 255, 0.5);
@@ -73,6 +79,7 @@ const CSS = `
   /* Faísca: pontinho brilhante que pisca e cai devagar (celebrações) */
   .pet-spark {
     position: absolute;
+    z-index: 10;
     width: 5px;
     height: 5px;
     border-radius: 50%;

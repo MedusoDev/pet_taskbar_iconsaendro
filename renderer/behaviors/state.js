@@ -125,6 +125,14 @@ export function createState(now, groundY) {
     nextHeartFxAt: 0,          // próximo coração flutuante do Excited
     nextFlirtAt: now + 90000,  // próximo flerte espontâneo
 
+    // Continuidade de tópico na conversa (behaviors/topicTracker.js): qual
+    // assunto o usuário mencionou por último no chat (id de TOPIC_CATEGORIES,
+    // ou null) e até quando esse tópico continua valendo sem ser
+    // remencionado — chat.js renova os dois a cada mensagem que casa uma
+    // categoria; expirado, currentTopic volta a null sozinho.
+    currentTopic: null,
+    topicExpiresAt: 0,
+
     // saída envergonhada do Excited (ver personalityState.js / effects.js)
     pendingBurst: false,       // liveAnimation dispara o respingo no próximo frame
     pendingBurstIntense: false, // respingo dobrado (much_petting)

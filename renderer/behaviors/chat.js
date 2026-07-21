@@ -1,15 +1,22 @@
 // AI_Chat: painel de conversa com o pet (duplo-clique nele abre/fecha).
-// Com chave da API configurada (pet.config.json), as respostas vêm do
-// Claude com a persona do pet + contexto do momento; sem chave (ou se a
+// Com groqApiKey configurada (pet.config.json), as respostas vêm da API de
+// verdade, com a persona do pet e contexto do momento; sem chave (ou se a
 // chamada falhar), o cérebro local (brain.js) responde na hora.
 // A resposta também sobe no balão de fala, pra conversa viver "no corpo"
 // do pet e não só no painel.
+
+import { liveConfig } from './liveConfig.js';
+import { trackTopic, topicLabel } from './topicTracker.js';
 
 const MAX_LOG_MESSAGES = 40;
 
 const CSS = `
   #pet-chat {
     position: absolute;
+    /* Camada 50 — ver "Camadas de UI" em index.html: a mais alta de todas.
+       O painel de conversa nunca pode ficar atrás/embaixo de nenhum outro
+       elemento (fala, pergunta, barrinha, decoração). */
+    z-index: 50;
     left: 0;
     bottom: 0;
     transform: translateX(-50%);
@@ -178,7 +185,7 @@ export function createChat({ state, bond, brain, sysMonitor, petMemory, speak, l
     typingEl = null;
   }
 
-  // Contexto vivo mandado junto de cada mensagem pro Claude (curto!)
+  // Contexto vivo mandado junto de cada mensagem pra API (curto!)
   function buildContext() {
     const parts = [];
     parts.push(`humor: ${state.mode}`);
@@ -192,6 +199,9 @@ export function createChat({ state, bond, brain, sysMonitor, petMemory, speak, l
       );
     }
     if (bond.data.userName) parts.push(`nome do usuário: ${bond.data.userName}`);
+    // Continuidade de tópico (topicTracker.js): a API já sabe que deve
+    // seguir na mesma linha do assunto sem o usuário repetir.
+    if (state.currentTopic) parts.push(`tópico atual: ${topicLabel(state.currentTopic)}`);
     // Memórias locais (respostas que o usuário deu às perguntas do pet)
     if (petMemory) {
       const mem = petMemory.contextLine(5);
@@ -220,11 +230,20 @@ export function createChat({ state, bond, brain, sysMonitor, petMemory, speak, l
     appendMsg('user', text);
     logEvent('chat', `usuário: "${text}"`);
     bond.noteStat('chats');
+    // Continuidade de tópico: ANTES de montar o contexto, pra tanto a
+    // chamada de API quanto o cérebro local (via state.currentTopic)
+    // saberem do assunto atual desta mesma mensagem em diante.
+    const topicBefore = state.currentTopic;
+    const topic = trackTopic(state, text, performance.now());
+    if (topic && topic !== topicBefore) logEvent('tópico', `assunto atual: ${topicLabel(topic)}`);
+    else if (!topic && topicBefore) logEvent('tópico', 'assunto expirou');
     showTyping();
 
     let replyText = null;
 
-    if (aiStatus.available && window.petAPI && window.petAPI.sendChat) {
+    // forceLocalBrain (janela de Configurações → aba IA/Chat): pula a API de
+    // propósito, útil pra testar sem gastar cota.
+    if (aiStatus.available && !liveConfig.ai.forceLocalBrain && window.petAPI && window.petAPI.sendChat) {
       try {
         const res = await window.petAPI.sendChat(text, buildContext());
         if (res && res.text) {

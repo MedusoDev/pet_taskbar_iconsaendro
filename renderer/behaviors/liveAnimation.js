@@ -469,8 +469,19 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   siteIconEl.style.bottom = `${uiBottomPx + 10}px`;
   speechEl.style.bottom = `${uiBottomPx + 14}px`;
 
+  // ── Prioridade de UI: balão de pergunta e painel de chat ocupam o MESMO
+  //    canto acima do gem que o balão de fala comum — sem isso os três se
+  //    sobrepõem de forma confusa. Regra (ver index.html p/ z-index e
+  //    speech.js p/ o suppressBank que já recusa falas de banco novas):
+  //      chat aberto  > balão de pergunta > fala comum
+  //    Enquanto qualquer um dos dois primeiros está ativo, a fala comum
+  //    simplesmente não é desenhada (fila e cooldown continuam intactos por
+  //    baixo — ela volta a aparecer sozinha assim que o outro fecha).
+  const promptActive = !!(prompt && prompt.visible);
+  speechEl.classList.toggle('suppressed', state.chatOpen || promptActive);
+
   // ── Balão de pergunta (estacionar/liberar) acompanha o gem ──
-  if (prompt && prompt.visible) {
+  if (promptActive) {
     prompt.updatePosition(gemScreenX(state, camera, gem), uiBottomPx + 14);
   }
 

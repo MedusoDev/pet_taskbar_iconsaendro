@@ -3,7 +3,10 @@
 // comportamento (NSFW deixa o pet excitado; outra IA dá ciúmes).
 // O que o pet "vê" fica em state.siteInfo (o chat usa como contexto vivo).
 
-const SITE_CATEGORIES = [
+// Exportada pra behaviors/topicTracker.js reaproveitar as mesmas regexes na
+// hora de detectar do que o usuário está falando no chat — sem duplicar a
+// lista, só analisando texto digitado em vez de título de janela.
+export const SITE_CATEGORIES = [
   {
     id: 'nsfw',
     match: /pornhub|xvideos|xnxx|redtube|xhamster|onlyfans|privacy\.com|brazzers|hentai|nhentai|rule ?34|erome|sexlog|fatal ?model|camsoda|chaturbate|stripchat|bang ?bros|porn|\bsexo\b|\+18|literotica/i,

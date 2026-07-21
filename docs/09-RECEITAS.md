@@ -99,7 +99,7 @@ nunca é usado.
 `{ text, hearts?, bondPts?, ... }`. Lembre: `intents` roda ANTES do lorebook.
 
 ### Mudar a persona no modo COM API
-`main.js`, a constante **`PET_SYSTEM_PROMPT`**. É o texto que define o pet pro Claude.
+`main.js`, a constante **`PET_SYSTEM_PROMPT`**. É o texto que define o pet pra Groq.
 
 ---
 

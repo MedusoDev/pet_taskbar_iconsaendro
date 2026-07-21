@@ -46,21 +46,22 @@ npm run dist        # gera dist/Icozinho-2.0.0.exe (portátil, um arquivo só)
   (status do PC, vínculo, nome...) + um **lorebook** com dezenas de assuntos
   (música, filmes, animes, games, comida, filosofia, conselhos, futebol,
   segredos, flerte e spicy que escalam com o vínculo). 100% offline.
-- Com a **API do Claude** configurada, ele responde com IA de verdade, com a
-  persona dele + contexto vivo (humor, vínculo, site ativo, RAM/CPU, hora).
-  Crie um `pet.config.json` na raiz (gitignored):
+- Também lembra do **assunto atual** da conversa por alguns minutos
+  (`topicTracker.js`), então não precisa repetir o tema a cada mensagem.
+- Com a **API da Groq** configurada, ele responde com IA de verdade, com a
+  persona dele + contexto vivo (humor, vínculo, site ativo, RAM/CPU, hora,
+  tópico atual). Crie um `pet.config.json` na raiz (gitignored):
 
 ```json
 {
-  "apiKey": "sk-ant-...",
-  "model": "claude-opus-4-8",
+  "groqApiKey": "gsk_...",
   "petName": "Ico",
   "userName": "SeuNome"
 }
 ```
 
-  (`ANTHROPIC_API_KEY` no ambiente também funciona. `model` é opcional —
-  `claude-haiku-4-5` fica mais barato/rápido pra papo casual.)
+  (`GROQ_API_KEY` no ambiente também funciona. Também dá pra configurar pela
+  janela de Configurações, aba "IA/Chat", sem editar arquivo nenhum.)
 
 ### AI_Curiosity + AI_Memory — ele te conhece de verdade
 - De tempos em tempos (a cada ~9–16min, com você presente) ele fica curioso
@@ -99,7 +100,7 @@ e-mail, redes sociais, X, mensagens, compras, games, estudos, notícias...
 
 ```
 main.js               processo Electron: janela, cursor global, janela ativa,
-                      stats de sistema, chat com a API do Claude
+                      stats de sistema, chat com a API da Groq
 preload.js            ponte IPC (contextBridge)
 renderer/
   movement.js         bootstrap + loop principal (fiação de tudo)
@@ -123,7 +124,3 @@ renderer/
     shutdown.js         evento shutdown / nocaute
   personalities/        Normality, Zen, Excited (paleta, movimento, falas)
 ```
-
-## Herança
-Nasceu do icosaedro-mascote do MedusoPortifolio (`Icosaendro3D.tsx`,
-`IcosaGem.tsx`, `IdleEvents.tsx` na raiz são a referência original em React).

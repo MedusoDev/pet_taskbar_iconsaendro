@@ -5,7 +5,7 @@
 // efeitos colaterais (corações, blush, pontos de vínculo). As memórias do
 // usuário (petMemory.js) entram nas respostas — ele lembra do que você conta.
 //
-// Com chave configurada, o chat usa o Claude de verdade (main.js) e este
+// Com groqApiKey configurada, o chat usa a API de verdade (main.js) e este
 // módulo só entra se a chamada falhar.
 
 import { LOREBOOK } from './lorebook.js';
@@ -276,29 +276,49 @@ export function createBrain({ state, bond, sysMonitor, petMemory }) {
     },
   ];
 
+  // Monta a resposta de UMA entrada do lorebook já escolhida (locked/byLevel/
+  // replies conforme o vínculo) — null se ela não tiver pool de respostas
+  // válido pro nível atual (ex.: byLevel com tier vazio).
+  function replyFromEntry(entry, level) {
+    let pool;
+    if (entry.minLevel && level < entry.minLevel && entry.locked) {
+      pool = entry.locked;
+    } else if (entry.byLevel) {
+      pool = entry.byLevel[Math.min(level, entry.byLevel.length - 1)];
+    } else {
+      pool = entry.replies;
+    }
+    if (!pool || !pool.length || !pool[0]) return null;
+    return {
+      text: pick(pool),
+      intent: `lore_${entry.id}`,
+      hearts: entry.hearts,
+      blush: entry.blush,
+      charge: entry.charge,
+      bondPts: entry.bondPts || 0.5,
+    };
+  }
+
   function lorebookReply(clean) {
     const level = bond.level();
+    // Continuidade de tópico (topicTracker.js): quando MAIS DE UMA entrada
+    // bate com a mensagem, a que pertence ao assunto que já estava rolando
+    // (state.currentTopic) fura a ordem padrão do array — sem isso, uma
+    // regex genérica mais acima sempre "roubaria" a resposta de uma entrada
+    // mais específica do tópico atual. Só um critério de DESEMPATE: não
+    // destrava nada (minLevel/locked continuam valendo do jeito que sempre
+    // valeram — replyFromEntry acima não muda).
+    const topic = state.currentTopic;
+    let fallback = null;
     for (const entry of LOREBOOK) {
       if (!entry.match.test(clean)) continue;
-      let pool;
-      if (entry.minLevel && level < entry.minLevel && entry.locked) {
-        pool = entry.locked;
-      } else if (entry.byLevel) {
-        pool = entry.byLevel[Math.min(level, entry.byLevel.length - 1)];
-      } else {
-        pool = entry.replies;
+      if (topic && entry.topic === topic) {
+        const out = replyFromEntry(entry, level);
+        if (out) return out;
       }
-      if (!pool || !pool.length || !pool[0]) continue;
-      return {
-        text: pick(pool),
-        intent: `lore_${entry.id}`,
-        hearts: entry.hearts,
-        blush: entry.blush,
-        charge: entry.charge,
-        bondPts: entry.bondPts || 0.5,
-      };
+      if (!fallback) fallback = entry;
     }
-    return null;
+    return fallback ? replyFromEntry(fallback, level) : null;
   }
 
   function reply(text) {

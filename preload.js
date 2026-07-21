@@ -27,4 +27,16 @@ contextBridge.exposeInMainWorld('petAPI', {
   log: (line) => {
     ipcRenderer.send('pet-log', line);
   },
+  // ── Janela de Configurações/Playground (settings/) ──
+  // A janela de Settings é uma BrowserWindow separada; main.js relê as
+  // mensagens entre ela e este renderer (ver settingsBridge.js).
+  onTuningConfig: (callback) => {
+    ipcRenderer.on('tuning-config', (_event, cfg) => callback(cfg));
+  },
+  onSettingsCommand: (callback) => {
+    ipcRenderer.on('settings:cmd', (_event, msg) => callback(msg));
+  },
+  sendSettingsEvent: (payload) => {
+    ipcRenderer.send('settings:pet-event', payload);
+  },
 });

@@ -20,10 +20,16 @@ import { zen } from '../personalities/zen.js';
 import { excited } from '../personalities/excited.js';
 import { clamp } from './mathUtils.js';
 import { resetBoredom } from './boredom.js';
+import { liveConfig } from './liveConfig.js';
+
+// Os tempos abaixo marcados "ver liveConfig.personality" foram migrados pra
+// lá — editáveis ao vivo pela janela de Configurações (settingsBridge.js).
+// Os demais (durações de pose puramente visuais, sem "onde mexer" nos docs)
+// continuam fixos aqui.
 
 // ── Zen: respiração / aura ──
 const ZEN_AURA_DURATION_MS = zen.zenAura.duration * 1000;
-const ZEN_BREATHING_ESCALATE_MS = 240000; // 4min contínuos em breathing → zen_aura (sem rush)
+// ZEN_BREATHING_ESCALATE_MS → ver liveConfig.personality
 const BREATHING_LIFT_THRESHOLD = 14; // unidades de mundo: carregado bem alto → quebra o transe
 const ZEN_AURA_TINT = '#FBBF24'; // dourado
 
@@ -31,7 +37,7 @@ const ZEN_AURA_TINT = '#FBBF24'; // dourado
 // (valores reduzidos temporariamente pra facilitar teste com carinho por
 // hover — o gesto original de 20s/8s é cansativo de sustentar sem clicar;
 // ver BRAINSTORM_PERSONALIDADES.md)
-const ZEN_EXCITED_PET_MS = 6000;
+// ZEN_EXCITED_PET_MS → ver liveConfig.personality
 const ZEN_TRANSITION_DURATION_MS = 3200;
 const ZEN_TRANSITION_TINT = '#DC2626'; // vermelho
 
@@ -39,14 +45,14 @@ const ZEN_TRANSITION_TINT = '#DC2626'; // vermelho
 // Com a barra de carinho cheia (>= 1.0) e o cafuné continuando, uma aura
 // vai crescendo no coração (state.petCharge, 0→1). Cheia → modo Excited.
 const PET_CHARGE_FULL_AFFECTION = 1.0; // barra "100%"
-const PET_CHARGE_FILL_SEC = 4;         // s de cafuné contínuo pra encher a aura
+// PET_CHARGE_FILL_SEC → ver liveConfig.personality
 const PET_CHARGE_DRAIN_SEC = 2;        // s pra aura esvaziar quando para
 
 // ── Ico_Eye → Excited: arousal por conteúdo adulto no navegador ──
 // Com um site NSFW ativo (state.nsfwActive, ver siteEye.js), a mesma aura
 // de supercarga enche devagarinho sozinha — o pet tenta disfarçar, não
 // consegue, e depois de ~35s de exposição contínua ele "liga" sozinho.
-const NSFW_CHARGE_FILL_SEC = 35;
+// NSFW_CHARGE_FILL_SEC → ver liveConfig.personality
 
 // ── Afterglow: os segundos derretidos depois do alívio (fase rush) ──
 const AFTERGLOW_MS = 8000;
@@ -57,7 +63,7 @@ const NEED_YOU_MAX_MS = 13000;
 const HEART_MIN_MS = 1200;
 const HEART_MAX_MS = 2000;
 const PLEASE_PET_TIMEOUT_MS = 5000; // sem carinho → desiste
-const PLEASE_PET_EXCESS_MS = 3000;  // carinho acumulado dentro do please_pet → vergonha
+// PLEASE_PET_EXCESS_MS → ver liveConfig.personality
 
 // ── Excited: saída envergonhada (carinho demais) ──
 const SHY_EXIT_MS = 4200;            // murcha tremendo antes de voltar pro Normality
@@ -333,7 +339,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     }
 
     if (state.pettingNow && state.affection >= PET_CHARGE_FULL_AFFECTION && now >= state.excitedCooldownUntil) {
-      state.petCharge = Math.min(state.petCharge + delta / PET_CHARGE_FILL_SEC, 1);
+      state.petCharge = Math.min(state.petCharge + delta / liveConfig.personality.PET_CHARGE_FILL_SEC, 1);
       if (state.petCharge >= 1) {
         logEvent('supercarga', 'carinho transbordou — Normality → Excited');
         enterExcited(now);
@@ -341,7 +347,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     } else if (state.nsfwActive && !state.dragging && now >= state.excitedCooldownUntil) {
       // Ico_Eye: conteúdo adulto no navegador — a aura enche devagarinho
       // sozinha enquanto ele "finge que não viu"
-      state.petCharge = Math.min(state.petCharge + delta / NSFW_CHARGE_FILL_SEC, 1);
+      state.petCharge = Math.min(state.petCharge + delta / liveConfig.personality.NSFW_CHARGE_FILL_SEC, 1);
       if (state.petCharge >= 1) {
         logEvent('arousal', 'exposição demais — Normality → Excited (culpa do navegador)');
         enterExcited(now, 'nsfw');
@@ -378,7 +384,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     // zen_much_more_excited: carinho contínuo por >= 20s enquanto respira
     if (state.pettingNow) {
       if (!z.pettingStreakStart) z.pettingStreakStart = now;
-      if (now - z.pettingStreakStart >= ZEN_EXCITED_PET_MS) {
+      if (now - z.pettingStreakStart >= liveConfig.personality.ZEN_EXCITED_PET_MS) {
         startZenTransition(now);
         return null;
       }
@@ -405,7 +411,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
       }
 
       // escalada: respiração contínua e imóvel por 2min → zen_aura
-      if (now - b.start >= ZEN_BREATHING_ESCALATE_MS) {
+      if (now - b.start >= liveConfig.personality.ZEN_BREATHING_ESCALATE_MS) {
         startZenAura(now);
         return zen.zenAura.apply(0);
       }
@@ -564,7 +570,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     if (state.pettingNow) {
       es.pettingMsInPleasePet += delta * 1000;
       es.lastPetSeenAt = now;
-      if (es.pettingMsInPleasePet >= PLEASE_PET_EXCESS_MS) {
+      if (es.pettingMsInPleasePet >= liveConfig.personality.PLEASE_PET_EXCESS_MS) {
         startShyExit(now);
         return null;
       }
@@ -577,5 +583,15 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     return null;
   }
 
-  return { enterZen, update };
+  // exitToNormality: saída genérica pra Normality a partir de QUALQUER humor
+  // atual — usada pela janela de Configurações (dropdown de personalidade,
+  // ver settingsBridge.js) pra forçar uma troca manual sem esperar os
+  // tempos reais. Silenciosa (sem log/fala própria) por ser um atalho de
+  // teste, não um evento orgânico do pet.
+  function exitToNormality(now) {
+    if (state.mode === 'zen') exitZenToNormality('forçado pela janela de configurações', now);
+    else if (state.mode === 'excited') exitExcitedToNormality('forçado pela janela de configurações', now);
+  }
+
+  return { enterZen, enterExcited, exitToNormality, update };
 }

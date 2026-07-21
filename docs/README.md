@@ -13,7 +13,7 @@ que é um "como eu mudo X" prático com o arquivo e a linha exatos.
 | # | Documento | O que cobre |
 |---|-----------|-------------|
 | 00 | [Visão geral](00-VISAO-GERAL.md) | O que é o programa, os dois "processos", o loop de cada frame, o modelo mental |
-| 01 | [Processo principal](01-PROCESSO-PRINCIPAL.md) | `main.js` + `preload.js`: a janela, a bandeja, o monitor de sistema, a ponte com o renderer, a API do Claude |
+| 01 | [Processo principal](01-PROCESSO-PRINCIPAL.md) | `main.js` + `preload.js`: a janela, a bandeja, o monitor de sistema, a ponte com o renderer, a API da Groq |
 | 02 | [A cena 3D](02-CENA-3D.md) | `scene.js`: o icosaedro, as 80 faces, cores, luzes, o "desdobrar" e a mudança de forma |
 | 03 | [Estado e loop](03-ESTADO-E-LOOP.md) | `state.js` + `movement.js`: o objeto de estado central e a fiação do loop principal |
 | 04 | [Movimento e pose](04-MOVIMENTO.md) | `wander.js` + `liveAnimation.js`: pairar, viajar, girar, respirar, cair |

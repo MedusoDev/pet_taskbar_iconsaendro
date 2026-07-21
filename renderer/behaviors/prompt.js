@@ -8,6 +8,10 @@ const AUTO_HIDE_MS = 8000; // sem resposta → a pergunta murcha sozinha
 const CSS = `
   #pet-prompt {
     position: absolute;
+    /* Camada 40 — ver "Camadas de UI" em index.html: sempre acima do balão
+       de fala comum (que se esconde sozinho via .suppressed enquanto esta
+       pergunta está visível — ver liveAnimation.js). */
+    z-index: 40;
     left: 0;
     bottom: 0;
     transform: translateX(-50%);

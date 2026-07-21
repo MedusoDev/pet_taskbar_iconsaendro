@@ -12,7 +12,7 @@ O painel que abre com **duplo-clique** no pet. Ele decide de onde vem a resposta
 
 ```
 você digita → send()
-  ├─ tem chave de API? → window.petAPI.sendChat() → Claude (main.js)
+  ├─ tem groqApiKey?   → window.petAPI.sendChat() → Groq (main.js)
   │     └─ falhou? → cai no cérebro local
   └─ sem chave       → cérebro local (brain.js) na hora
 ```

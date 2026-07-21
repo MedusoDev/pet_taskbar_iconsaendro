@@ -10,6 +10,9 @@ const FULL = 1.0;
 const CSS = `
   #affection-bar {
     position: absolute;
+    /* Camada 20 — ver "Camadas de UI" em index.html: acima da decoração
+       ambiente (zzz/site-icon/efeitos), abaixo da fala/pergunta/chat. */
+    z-index: 20;
     left: 0; /* movido via JS para acompanhar o gem */
     bottom: 0;
     width: 56px;

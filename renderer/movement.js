@@ -5,6 +5,8 @@ import * as THREE from '../node_modules/three/build/three.module.js';
 import { initScene } from './scene.js';
 import { createPersonalityState } from './behaviors/personalityState.js';
 import { createSpeech } from './behaviors/speech.js';
+import { createAmbientSpeech } from './behaviors/ambientSpeech.js';
+import { applyConfig } from './config.js';
 import { setupSiteEye } from './behaviors/siteEye.js';
 import { computeView, scheduleNextRelocate } from './behaviors/wander.js';
 import { createState } from './behaviors/state.js';
@@ -56,9 +58,19 @@ if (window.petAPI && window.petAPI.onScreenConfig) {
 
 // ─── AI_Live: máquina de personalidade (Normality ⇄ Zen ⇄ ...) ─────────────
 const speak = createSpeech({ speechEl, logEvent, getPersonality: () => state.personality });
+const updateAmbientSpeech = createAmbientSpeech({ state, speak });
 const personalityCtl = createPersonalityState({ state, setPalette, setTint, logEvent, speak });
 setPalette(state.personality.palette);
 logEvent('personalidade', `${state.personality.name} (paleta ${state.personality.palette[0]}…)`);
+
+// ─── Config das abas de Configurações ──────────────────────────────────────
+// Aplica os ajustes salvos (ritmo/animações/interações/personalidade/falas). O
+// main empurra a config no did-finish-load e a cada save (onConfig) — e o
+// getConfig cobre qualquer corrida de inicialização.
+if (window.petAPI && window.petAPI.onConfig) window.petAPI.onConfig(applyConfig);
+if (window.petAPI && window.petAPI.getConfig) {
+  window.petAPI.getConfig().then((cfg) => cfg && applyConfig(cfg)).catch(() => {});
+}
 
 // ─── Ico_Eye: categorias conhecidas por trecho do título da janela ──────────
 setupSiteEye({ setTint, siteIconEl, speak, logEvent });
@@ -124,6 +136,7 @@ function animate() {
     updateShutdown(state, refs, now, delta, logEvent);
   } else {
     if (!state.zenAuraActive) updateBoredomClock(state, now, idleSec);
+    updateAmbientSpeech(now);
     updateAlive(state, refs, deps, now, delta, t);
   }
 

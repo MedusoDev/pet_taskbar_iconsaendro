@@ -2,11 +2,12 @@
 // tique de impaciência, espreguiçada, shutdown ou sono. E o inverso: quando
 // qualquer input chega, zera o relógio e acorda o pet se preciso.
 import { scheduleNextRelocate, groundAtX } from './wander.js';
+import { CONFIG } from '../config.js';
 
 const REST_AT = 14;      // tiques de impaciência
 const STRETCH_AT = 32;   // espreguiçada (uma vez por ciclo)
-const ZEN_AT = 60;       // 1min parado → entra no modo Zen (uma vez por ciclo)
-const SLEEP_AT = 65;     // dorme (só depois do ciclo de Zen já ter acontecido)
+// ZEN_AT (~4,5min → Zen) e SLEEP_AT (dorme, só pós-Zen) agora são ajustáveis
+// na aba Ritmo e Tempos: CONFIG.ritmo.zenEntrySec / sleepAfterZenSec.
 const SHUTDOWN_MIN = 30; // evento shutdown: sorteado entre 30 e 50s parado
 
 export function resetBoredom(state, now) {
@@ -57,9 +58,11 @@ export function createBoredomClock({ logEvent, speak, personalityCtl }) {
     // gem despencar da mão do usuário (ou dormir com o balão aberto).
     if (state.dragging || state.releaseFall || state.awaitingParkAnswer) return;
 
-    // 1min parado → medita (uma vez por ciclo de idle; quando o zen termina,
-    // o idle continua e a próxima parada é o sono)
-    if (!state.zenCycleDone && idleSec >= ZEN_AT) {
+    // ~4,5min parado → medita (uma vez por ciclo de idle). O sono e o gag de
+    // shutdown ficam gated atrás do zenCycleDone: são estados de idle PROFUNDO
+    // (pós-Zen). Sem esse gate, o shutdown (30-50s) reiniciava o relógio de
+    // idle antes dele chegar ao Zen, e o Zen nunca acontecia.
+    if (!state.zenCycleDone && idleSec >= CONFIG.ritmo.zenEntrySec) {
       state.zenCycleDone = true;
       state.tick = null;
       state.stretch = null;
@@ -67,14 +70,14 @@ export function createBoredomClock({ logEvent, speak, personalityCtl }) {
       return;
     }
 
-    if (idleSec >= SLEEP_AT) {
+    if (state.zenCycleDone && idleSec >= CONFIG.ritmo.sleepAfterZenSec) {
       state.sleeping = true;
       state.tick = null;
       state.stretch = null;
       state.signatureAnim = null;
       logEvent('dormiu', `depois de ${Math.round(idleSec)}s parado`);
       speak('sleep');
-    } else if (!state.shutdownDone && idleSec >= state.shutdownAt) {
+    } else if (state.zenCycleDone && !state.shutdownDone && idleSec >= state.shutdownAt) {
       state.shutdownDone = true;
       state.shutdown = { start: now, vy: 0, falling: false, bounces: 0, startled: false };
       state.tick = null;

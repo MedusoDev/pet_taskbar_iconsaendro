@@ -2,28 +2,33 @@
 // alcançados por comportamento do usuário e sempre voltam pro Normality —
 // nunca escolhidos por dia. Ver BRAINSTORM_PERSONALIDADES.md.
 //
-// Normality ──(tecla Z)──▶ Zen (zen_breathing, imóvel)
-//   Zen ──(2min contínuos em zen_breathing)──▶ zen_aura ──(termina)──▶ Normality
+// Normality ──(~4,5min idle)──▶ Zen (zen_breathing, imóvel)
+//   Zen ──(~6min contínuos em zen_breathing)──▶ zen_aura ──(termina)──▶ Normality
 //   Zen ──(carregado bem alto e solto)──▶ Normality
 //   Zen ──(carinho contínuo por ~6s, teste)──▶ zen_much_more_excited ──▶ Excited
 //     Excited estacionado (parked): trapped (implora ofegante pra sair)
 //       trapped ──(unpark)──▶ rush (barra cheia, corre pro mouse) ──(chegou
 //         perto)──▶ solta as gotículas ──▶ Normality
 //       trapped ──(14s sem liberar)──▶ se acaba ali mesmo ──▶ Normality
-//     Excited: need_you (segue o mouse) ──▶ please_pet (pede carinho)
-//       please_pet ──(carinho demais)──▶ shy (respinga, blush ///) ──▶ Normality
-//         shy ──(carinho continua na janela)──▶ shy2/much_petting (2x mais
-//           intenso) ──▶ nocaute: shutdown + z z z por ~1min ──▶ Normality
-//       please_pet ──(sem carinho)──▶ Normality
+//     Excited: entra no estado LIVRE (anda errático + flerta sozinho) — a
+//       "vida própria" do Excited, independente de carinho (seção 5a).
+//       free ──(cafuné sustentado)──▶ need_you (segue o mouse) ──▶ please_pet
+//         please_pet ──(carinho demais)──▶ shy (respinga, blush ///) ──▶ Normality
+//           shy ──(carinho continua na janela)──▶ shy2/much_petting (2x mais
+//             intenso) ──▶ nocaute: shutdown + z z z por ~1min ──▶ Normality
+//         please_pet ──(carinho parou)──▶ volta pro estado LIVRE (não Normality)
+//       free ──(≥5min no Excited E ≥2min sem input)──▶ Normality (seção 5c)
 import { normality } from '../personalities/normality.js';
 import { zen } from '../personalities/zen.js';
 import { excited } from '../personalities/excited.js';
 import { clamp } from './mathUtils.js';
 import { resetBoredom } from './boredom.js';
+import { CONFIG } from '../config.js';
 
 // ── Zen: respiração / aura ──
 const ZEN_AURA_DURATION_MS = zen.zenAura.duration * 1000;
-const ZEN_BREATHING_ESCALATE_MS = 240000; // 4min contínuos em breathing → zen_aura (sem rush)
+// breathing → zen_aura é ajustável na aba Ritmo e Tempos
+// (CONFIG.ritmo.breathingToAuraSec, faixa 4-8min).
 const BREATHING_LIFT_THRESHOLD = 14; // unidades de mundo: carregado bem alto → quebra o transe
 const ZEN_AURA_TINT = '#FBBF24'; // dourado
 
@@ -42,12 +47,20 @@ const PET_CHARGE_FULL_AFFECTION = 1.0; // barra "100%"
 const PET_CHARGE_FILL_SEC = 4;         // s de cafuné contínuo pra encher a aura
 const PET_CHARGE_DRAIN_SEC = 2;        // s pra aura esvaziar quando para
 
+// ── Excited: estado LIVRE (vida própria) e saída (seção 5) ──
+// O Excited "livre" (anda errático + flerta sozinho) É o estado padrão. O
+// loop de carinho é UMA fase dentro dele, engatada por cafuné sustentado.
+const FREE_PET_ENGAGE_MS = 600;      // carinho contínuo no estado livre → engata o loop
+// O "cansaço" do Excited (5c) — tempo total animado E tempo sem input pra sair
+// — é ajustável na aba Ritmo e Tempos: CONFIG.ritmo.excitedMaxMin /
+// excitedIdleExitMin.
+
 // ── Excited: need_you → please_pet ──
 const NEED_YOU_MIN_MS = 8000;
 const NEED_YOU_MAX_MS = 13000;
 const HEART_MIN_MS = 1200;
 const HEART_MAX_MS = 2000;
-const PLEASE_PET_TIMEOUT_MS = 5000; // sem carinho → desiste
+const PLEASE_PET_TIMEOUT_MS = 5000; // sem carinho → volta pro estado livre
 const PLEASE_PET_EXCESS_MS = 3000;  // carinho acumulado dentro do please_pet → vergonha
 
 // ── Excited: saída envergonhada (carinho demais) ──
@@ -166,11 +179,12 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     state.zen = null;
     state.zenAuraActive = false;
     state.zenBreathingActive = false;
+    state.excitedEnteredAt = now; // relógio do "cansaço" total (seção 5c)
     setTint(null);
     setPalette(excited.palette);
     state.signatureAnim = null;
     // Viagem em andamento morreria brigando com o "seguir o mouse" por
-    // âncora — cancela pra ele engatar a perseguição limpo.
+    // âncora — cancela pra ele engatar limpo.
     cancelReloc();
     if (state.parked) {
       // Estacionado: não pode perseguir — fica preso implorando pra sair
@@ -178,16 +192,27 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
       logEvent('excited', 'ativado PRESO (estacionado) — implorando pra sair!');
       speak('let_me_out', true);
     } else {
-      state.excitedState = {
-        phase: 'needYou',
-        needYouUntil: now + NEED_YOU_MIN_MS + Math.random() * (NEED_YOU_MAX_MS - NEED_YOU_MIN_MS),
-        nextHeartAt: now + HEART_MIN_MS,
-        lastPetSeenAt: 0,
-        pettingMsInPleasePet: 0,
-      };
-      logEvent('excited', 'explodiu — modo Excited ativado!');
+      // Vida própria: entra no estado LIVRE (anda errático + flerta sozinho).
+      // O loop de carinho (needYou→pleasePet→...) só começa se o usuário fizer
+      // cafuné durante o estado livre (ver updateExcitedFree). Seção 5a/5b.
+      enterExcitedFree(now, 'explodiu — modo Excited ativado (estado livre)!');
       speak('excited', true);
     }
+  }
+
+  // Estado LIVRE do Excited (seção 5a/5b): a "vida própria" dele. Reutilizado
+  // na entrada e sempre que o carinho para antes do clímax (volta pra cá, não
+  // pro Normality). O andar errático fica em wander.js; o flerte espontâneo,
+  // no ambientSpeech.js; a shimmy, na assinatura da personalidade.
+  function enterExcitedFree(now, reason) {
+    cancelReloc();
+    state.excitedState = {
+      phase: 'free',
+      pettingMs: 0, // carinho sustentado no estado livre pra engatar o loop
+    };
+    // Arranca já pra um novo destino errático (não fica plantado no lugar)
+    state.nextRelocateAt = now + 400 + Math.random() * 600;
+    logEvent('excited', reason);
   }
 
   // Carinho demais no please_pet: gotículas brancas espirram, o blush "///"
@@ -367,8 +392,8 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
         }
       }
 
-      // escalada: respiração contínua e imóvel por 2min → zen_aura
-      if (now - b.start >= ZEN_BREATHING_ESCALATE_MS) {
+      // escalada: respiração contínua e imóvel por N min → zen_aura
+      if (now - b.start >= CONFIG.ritmo.breathingToAuraSec * 1000) {
         startZenAura(now);
         return zen.zenAura.apply(0);
       }
@@ -384,6 +409,9 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
   function updateExcited(now, delta) {
     const es = state.excitedState;
     if (!es) return null;
+
+    // fase free (estado LIVRE, seção 5a/5b): a vida própria do Excited
+    if (es.phase === 'free') return updateExcitedFree(now, delta);
 
     // fase trapped: ativado estacionado — preso, implora pra sair com
     // veemência, respirando ofegante
@@ -506,11 +534,53 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
         return null;
       }
     } else if (now - es.lastPetSeenAt >= PLEASE_PET_TIMEOUT_MS) {
+      // Carinho parou antes do clímax → volta pro estado LIVRE, não pro
+      // Normality (seção 5b). Só sai do Excited de vez pelo critério da 5c
+      // (cansaço + tédio real), avaliado no updateExcitedFree.
       speak('please_pet_giveup', true);
-      exitExcitedToNormality('sem carinho — desistiu', now);
+      enterExcitedFree(now, 'carinho parou antes do clímax — volta a viver livre');
       return null;
     }
 
+    return null;
+  }
+
+  // fase free (seção 5a/5b): anda errático (wander.js) e flerta sozinho
+  // (ambientSpeech.js). Aqui só cuidamos de (a) engatar o loop de carinho se o
+  // usuário fizer cafuné e (b) o critério de saída do Excited (seção 5c).
+  function updateExcitedFree(now, delta) {
+    const es = state.excitedState;
+
+    // (a) Cafuné sustentado durante o estado livre → engata o loop de paquera
+    // (needYou → pleasePet → ...). Precisa de um tiquinho pra não engatar num
+    // roçar acidental do cursor.
+    if (state.pettingNow) {
+      es.pettingMs += delta * 1000;
+      if (es.pettingMs >= FREE_PET_ENGAGE_MS) {
+        es.phase = 'needYou';
+        es.needYouUntil = now + NEED_YOU_MIN_MS + Math.random() * (NEED_YOU_MAX_MS - NEED_YOU_MIN_MS);
+        es.nextHeartAt = now + HEART_MIN_MS;
+        es.lastPetSeenAt = now;
+        es.pettingMsInPleasePet = 0;
+        logEvent('excited', 'carinho no estado livre — engatou o loop de paquera');
+        speak('need_you', true);
+      }
+      return null;
+    }
+    es.pettingMs = 0;
+
+    // (b) Saída do Excited (seção 5c): SÓ sai quando as DUAS valem —
+    // >= 5min TOTAL animado (cansou) E >= 2min sem input nenhum (tédio real).
+    const inExcitedFor = now - state.excitedEnteredAt;
+    const idleFor = now - state.lastInput;
+    if (
+      inExcitedFor >= CONFIG.ritmo.excitedMaxMin * 60000 &&
+      idleFor >= CONFIG.ritmo.excitedIdleExitMin * 60000
+    ) {
+      exitExcitedToNormality('cansou de estar animado + tédio real (5min + 2min)', now);
+      resetBoredom(state, now); // recomeça o relógio de idle limpo no Normality
+      speak('calmdown', true);  // já no Normality: usa as falas de calmdown dele
+    }
     return null;
   }
 

@@ -1,15 +1,19 @@
 const { app, BrowserWindow, screen, ipcMain } = require('electron');
 const path = require('path');
 const activeWin = require('active-win');
+const configStore = require('./configStore');
+const { createSettingsWindow } = require('./settingsWindow');
 
-// Altura da "pista" onde o pet vive, logo acima da taskbar. Aumentada (era
-// 160) pra dar mais espaço vertical de arrasto — o gem continua com o mesmo
-// tamanho em pixels (scene.js escala a câmera na mesma proporção).
-const WINDOW_HEIGHT = 480;
+// Config persistente (abas de Configurações). Carregada em app.whenReady.
+let config = configStore.DEFAULTS;
 
-// Ico_Eye: o único navegador que o pet "observa" — janelas de outros
-// processos são ignoradas (nem o título chega no renderer).
-const TARGET_BROWSER_NAME = 'brave';
+// Altura da "pista" onde o pet vive, logo acima da taskbar (ajustável na aba
+// Sistema; o gem mantém o mesmo tamanho em pixels — scene.js escala a câmera).
+const windowHeight = () => config.sistema.windowHeight;
+
+// Ico_Eye: o único navegador que o pet "observa" (ajustável na aba Sistema) —
+// janelas de outros processos são ignoradas (nem o título chega no renderer).
+const targetBrowser = () => config.sistema.targetBrowser;
 
 let win = null;
 
@@ -35,7 +39,7 @@ function getWindowBounds() {
   // pista mais ALTA (chão mais alto − WINDOW_HEIGHT) até o chão mais BAIXO —
   // senão o pet "some" ao viajar pra um monitor cujo chão fica fora da faixa.
   const floors = displays.map(displayFloorY);
-  const y = Math.min(...floors) - WINDOW_HEIGHT;
+  const y = Math.min(...floors) - windowHeight();
   const height = Math.max(...floors) - y;
 
   return { x: minX, y, width: maxX - minX, height };
@@ -81,6 +85,7 @@ function createWindow() {
   win.once('ready-to-show', () => win.setBounds(getWindowBounds()));
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('screen-config', getScreenConfig());
+    win.webContents.send('config:changed', config); // pet aplica os ajustes salvos
   });
 
   console.log(
@@ -117,7 +122,7 @@ function createWindow() {
     }
     const isTarget =
       result && result.owner && result.owner.name
-        ? result.owner.name.toLowerCase().includes(TARGET_BROWSER_NAME)
+        ? result.owner.name.toLowerCase().includes(targetBrowser())
         : false;
 
     const title = isTarget ? result.title : null;
@@ -139,15 +144,11 @@ function createWindow() {
 ipcMain.on('set-ignore-mouse-events', (event, ignore) => {
   if (!win) return;
   win.setIgnoreMouseEvents(ignore, { forward: true });
-
-  // A janela é `focusable: false` de propósito (não deve roubar foco do
-  // resto do sistema flutuando por aí). Mas com isso ela nunca recebe
-  // teclado — então liberamos foco só no instante em que o mouse está de
-  // fato em cima do gem (mesmo gatilho do click-through), pra atalhos como
-  // o Z (gatilho manual do modo Zen) funcionarem sem grudar foco o tempo
-  // todo.
-  win.setFocusable(!ignore);
-  if (!ignore) win.focus();
+  // NÃO focamos a janela ao passar o mouse: o pet não tem mais nenhum atalho
+  // de teclado (o gatilho da tecla Z foi removido), e dar foco a essa janela
+  // frameless fazia o ícone padrão do Electron piscar na barra de tarefas /
+  // Alt-Tab toda vez que o cursor passava por cima dele. Mouse (clique,
+  // arrasto, cafuné) funciona via setIgnoreMouseEvents, sem precisar de foco.
 });
 
 // Diário do pet: o renderer manda cada reação/estado pra cá, e a gente
@@ -157,8 +158,28 @@ ipcMain.on('pet-log', (event, line) => {
   console.log(`${ts} ${line}`);
 });
 
+// ── Config / Configurações ──
+// A janela de Configurações lê o estado atual...
+ipcMain.handle('config:get', () => config);
+
+// ...e grava patches. Merge + persiste + reemite pro pet aplicar ao vivo
+// (ajustes de Sistema — janela/navegador — só valem ao reiniciar).
+ipcMain.handle('config:save', (event, patch) => {
+  config = configStore.deepMerge(config, patch);
+  configStore.save(config);
+  if (win && !win.isDestroyed()) win.webContents.send('config:changed', config);
+  return config;
+});
+
+// Abrir a janela de Configurações sob demanda (preload.openSettings)
+ipcMain.on('settings:open', () => createSettingsWindow());
+
 app.whenReady().then(() => {
+  config = configStore.load();
   createWindow();
+  // "A primeira coisa que abre é a janela de Configurações": abre por cima do
+  // pet no startup (desligável na aba Sistema).
+  if (config.openSettingsOnStart) createSettingsWindow();
 
   // Monitor plugado/removido/reconfigurado → reposiciona a "pista"
   const reposition = () => {

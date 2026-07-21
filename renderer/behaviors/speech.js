@@ -11,6 +11,9 @@ const FORCE_MIN_GAP = 1500;
 export function createSpeech({ speechEl, logEvent, getPersonality }) {
   let lastSpeakAt = 0;
   let speechHideTimer = null;
+  // Última fala sorteada por gatilho, pra não repetir a mesma duas vezes
+  // seguidas (importante nos bancos grandes como lines.ambient).
+  const lastLineByTrigger = new Map();
 
   return function speak(triggerKey, force = false) {
     const now = performance.now();
@@ -20,7 +23,12 @@ export function createSpeech({ speechEl, logEvent, getPersonality }) {
     if (!lines || lines.length === 0) return;
 
     lastSpeakAt = now;
-    const line = lines[Math.floor(Math.random() * lines.length)];
+    // Sorteia sem repetir a última do mesmo gatilho (quando há alternativa)
+    let line = lines[Math.floor(Math.random() * lines.length)];
+    if (lines.length > 1 && line === lastLineByTrigger.get(triggerKey)) {
+      line = lines[(lines.indexOf(line) + 1) % lines.length];
+    }
+    lastLineByTrigger.set(triggerKey, line);
     logEvent('fala', `"${line}" (gatilho: ${triggerKey})`);
     speechEl.textContent = line;
     speechEl.classList.add('visible');

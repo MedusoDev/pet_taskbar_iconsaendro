@@ -5,6 +5,7 @@ import * as THREE from '../../node_modules/three/build/three.module.js';
 import { GEM_RADIUS } from '../scene.js';
 import { EDGE_MARGIN, scheduleNextRelocate, groundAtX } from './wander.js';
 import { clamp } from './mathUtils.js';
+import { CONFIG } from '../config.js';
 
 export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput, prompt }) {
   const raycaster = new THREE.Raycaster();
@@ -15,7 +16,8 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
   // Cafuné exige esfregada de verdade: o cursor precisa fazer vai-e-vem em
   // cima dele (inversões de direção) — só passar por cima não conta.
   const PET_FLIP_WINDOW = 1000; // ms para acumular inversões
-  const PET_FLIPS_NEEDED = 2;   // inversões dentro da janela para engatar
+  // PET_FLIPS_NEEDED (inversões pra engatar cafuné) é ajustável na aba
+  // Interações (CONFIG.interacoes.petFlipsNeeded).
   const PET_JITTER_PX = 2;      // movimento abaixo disso não define direção
   let petDirX = 0;
   let petDirY = 0;
@@ -129,7 +131,7 @@ export function setupInteractions({ state, camera, gem, mesh, logEvent, speak, r
       if (dirY) petDirY = dirY;
       petFlips = petFlips.filter((f) => now - f < PET_FLIP_WINDOW);
 
-      if (petFlips.length >= PET_FLIPS_NEEDED || state.pettingNow) {
+      if (petFlips.length >= CONFIG.interacoes.petFlipsNeeded || state.pettingNow) {
         const strokes = Math.abs(dx) + Math.abs(dy);
         state.affection = Math.min(state.affection + strokes * 0.0004, 1.2);
         state.lastPetAt = now;

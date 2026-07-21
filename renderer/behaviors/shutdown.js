@@ -97,6 +97,13 @@ export function updateShutdown(state, refs, now, delta, logEvent) {
     state.shutdown = null;
     state.power = 1;
     resetBoredom(state, now);
+    if (!knockout) {
+      // O gag de shutdown já aconteceu neste ciclo de idle: não re-arma
+      // (senão ele ficaria em loop de shutdown a cada ~40s e nunca chegaria
+      // ao sono). Mantém zenCycleDone como está — assim o idle profundo
+      // pós-reboot segue direto pro sono.
+      state.shutdownDone = true;
+    }
     logEvent('shutdown', knockout ? 'nocaute de carinho terminou — de volta ao normal' : 'de volta ao normal');
   }
 }

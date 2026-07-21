@@ -73,9 +73,14 @@ export function groundAtX(state, x) {
 /** Agenda a próxima decisão de "ir pra outro lugar" com intervalo exponencial
  * (processo de Poisson): irregular de verdade, sem cadência perceptível. */
 export function scheduleNextRelocate(state, now) {
-  const mean = state.personality.movement.hoverMeanSec * 1000;
+  // Excited "livre" (seção 5a): decisões de destino MUITO mais frequentes —
+  // é isso que dá o andar errático/eletrizado (retarget a cada ~1,8s em vez
+  // dos ~6s normais dele).
+  const excitedFree =
+    state.mode === 'excited' && state.excitedState && state.excitedState.phase === 'free';
+  const mean = state.personality.movement.hoverMeanSec * 1000 * (excitedFree ? 0.3 : 1);
   const delay = -Math.log(1 - Math.random()) * mean;
-  state.nextRelocateAt = now + clamp(delay, 2200, mean * 3);
+  state.nextRelocateAt = now + clamp(delay, excitedFree ? 600 : 2200, mean * 3);
 }
 
 /** Inicia uma viagem até (targetX, targetY): duração proporcional à
@@ -117,9 +122,15 @@ export function pickWanderTarget(state, camera) {
   const mv = state.personality.movement;
   const limit = state.halfWidth - GEM_RADIUS - EDGE_MARGIN;
 
+  // Excited "livre" (seção 5a): destinos ERRÁTICOS — na maioria das vezes um
+  // ponto qualquer, longe, e não grudado no cursor. Não é perseguição (essa é
+  // a fase needYou/pleasePet, feita por âncora em liveAnimation.js); é a vida
+  // própria dele saltitando pela tela.
+  const excitedFree = state.mode === 'excited';
+
   const cwx = cursorToWorldX(state, camera);
-  // Empolgado só quer saber de uma coisa: onde o mouse está
-  const visitChance = state.mode === 'excited' ? 1 : 0.22 + 0.4 * mv.approach;
+  // No estado livre, só de vez em quando ele "passa" perto do mouse (flerte)
+  const visitChance = excitedFree ? 0.35 : 0.22 + 0.4 * mv.approach;
   if (cwx !== null && Math.random() < visitChance) {
     const x = cwx + (Math.random() * 2 - 1) * 1.8; // perto, mas não em cima
     return {
@@ -132,7 +143,8 @@ export function pickWanderTarget(state, camera) {
   const x = (Math.random() * 2 - 1) * limit;
   return {
     x,
-    y: groundAtX(state, x) + Math.random() * WANDER_Y_RANGE * mv.yRange,
+    // Livre: usa a faixa vertical inteira (salta mais alto/baixo, imprevisível)
+    y: groundAtX(state, x) + Math.random() * WANDER_Y_RANGE * mv.yRange * (excitedFree ? 1.1 : 1),
     toCursor: false,
   };
 }
@@ -171,17 +183,22 @@ export function updateRestPosition(state, camera, now, delta, t, logEvent) {
     // Decisão de mudar de poleiro (agenda irregular, estilo Poisson).
     // zen_aura é não interrompível: enquanto ativa, não começa viagem nova.
     // Recebendo cafuné também não sai andando no meio do carinho.
-    // Excited não faz viagens: ele já segue o mouse continuamente por âncora
-    // (liveAnimation.js) — uma viagem no meio faria ele "travar" e parar.
+    // Excited em PERSEGUIÇÃO (needYou/pleasePet/rush) não faz viagens: segue o
+    // mouse continuamente por âncora (liveAnimation.js) — uma viagem no meio
+    // faria ele "travar". MAS o Excited LIVRE (seção 5a) faz sim: é justamente
+    // o andar errático da vida própria dele (destinos frequentes, ver
+    // scheduleNextRelocate/pickWanderTarget).
     // Parked (estacionado pelo usuário) também não: prometeu ficar no lugar.
     // Assinatura tocando ou pergunta de estacionar aberta: espera terminar —
     // viajar no meio comporia a pose com o banking do voo (ou levaria o
     // balão passeando pela tela).
+    const excitedFree =
+      state.mode === 'excited' && state.excitedState && state.excitedState.phase === 'free';
     if (state.pettingNow) {
       state.nextRelocateAt = Math.max(state.nextRelocateAt, now + 3000);
     } else if (
       now >= state.nextRelocateAt &&
-      state.mode !== 'excited' &&
+      (state.mode !== 'excited' || excitedFree) &&
       !state.parked &&
       !state.signatureAnim && !state.awaitingParkAnswer &&
       !state.stretch && !state.dizzy && !state.zenAuraActive

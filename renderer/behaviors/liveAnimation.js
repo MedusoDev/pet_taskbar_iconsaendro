@@ -14,10 +14,12 @@ import {
   updateReleaseFall,
   groundAtX,
 } from './wander.js';
+import { CONFIG } from '../config.js';
 
 // Espaço pessoal do cursor
 const NEAR_PX = 150;          // "perto" do gem, em pixels de tela
-const FLINCH_SPEED = 1300;    // px/s: aproximação acima disso assusta
+// FLINCH_SPEED (px/s pra assustar) é ajustável na aba Interações
+// (CONFIG.interacoes.flinchSpeed).
 const FLINCH_COOLDOWN = 5000; // ms entre sustos
 
 const noiseMod = createNoise2D(3); // modula spin/bob/respiração/tilt (mata os metrônomos)
@@ -33,9 +35,13 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   const { logEvent, speak, personalityCtl } = deps;
   const personality = state.personality;
   const isExcited = state.mode === 'excited';
-  // Nas fases shy/shy2 (saída envergonhada) ele para de perseguir o mouse
+  const excitedPhase = isExcited && state.excitedState ? state.excitedState.phase : null;
+  // Estado livre (seção 5a): NÃO persegue o mouse — anda errático por conta
+  // própria (wander.js). A perseguição por âncora é só needYou/pleasePet/rush.
+  const excitedFree = excitedPhase === 'free';
+  // Nas fases shy/shy2 (saída envergonhada) e no estado livre ele NÃO persegue
   const excitedChasing =
-    isExcited && state.excitedState && !state.excitedState.phase.startsWith('shy');
+    isExcited && !!excitedPhase && !excitedPhase.startsWith('shy') && !excitedFree;
 
   // ── Máquina de personalidade: zen_breathing / zen_aura /
   // zen_much_more_excited têm pose própria, com prioridade sobre a
@@ -60,7 +66,10 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   ) {
     const sig = personality.signature;
     state.signatureAnim = { start: now, sig };
-    state.nextSignatureAt = now + (isExcited ? 6000 + Math.random() * 6000 : 25000 + Math.random() * 30000);
+    const a = CONFIG.animacoes;
+    const sigMin = isExcited ? a.excitedSignatureMinSec : a.idleSignatureMinSec;
+    const sigMax = isExcited ? a.excitedSignatureMaxSec : a.idleSignatureMaxSec;
+    state.nextSignatureAt = now + (sigMin + Math.random() * Math.max(0, sigMax - sigMin)) * 1000;
     logEvent('assinatura', sig.label);
   }
   if (!zenPose && state.signatureAnim) {
@@ -96,9 +105,10 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   }
 
   // Vibração de excitação: pulsos curtos de tremedeira de alta frequência —
-  // empolgado, ele não consegue ficar parado
+  // empolgado, ele não consegue ficar parado. Vale também no estado livre
+  // (seção 5a: andar "eletrizado"), não só perseguindo o mouse.
   let vibeZ = 0, vibeY = 0;
-  if (excitedChasing && !state.sleeping) {
+  if ((excitedChasing || excitedFree) && !state.sleeping) {
     if (now >= state.nextVibeAt) {
       state.vibeStart = now;
       state.nextVibeAt = now + 2200 + Math.random() * 2800;
@@ -160,7 +170,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
       // "Fica aqui" a salvar um poleiro que o usuário não escolheu.
       if (
         distPx < NEAR_PX * 1.2 &&
-        state.cursorVel > FLINCH_SPEED &&
+        state.cursorVel > CONFIG.interacoes.flinchSpeed &&
         now > state.flinchUntil &&
         !state.pettingNow &&
         state.mode === 'normality' &&

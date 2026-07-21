@@ -105,6 +105,7 @@ export function createState(now, groundY) {
     excitedState: null,
     zenAuraActive: false,
     zenBreathingActive: false,
+    excitedEnteredAt: 0, // quando entrou no Excited (relógio de saída, seção 5c)
 
     // saída envergonhada do Excited (ver personalityState.js / effects.js)
     pendingBurst: false,       // liveAnimation dispara o respingo no próximo frame

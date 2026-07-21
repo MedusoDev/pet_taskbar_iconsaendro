@@ -10,7 +10,13 @@ export const zen = {
   id: 'zen',
   name: 'Zen',
   palette: ['#38BDF8', '#0C4A6E', '#34D399', '#155E75', '#22D3EE', '#0EA5E9'],
-  movement: { hoverMeanSec: 12, speed: 0.7, micro: 0.7, approach: 0.35, spin: 0.75, yRange: 0.7 },
+  // speed 0.5: o Zen se desloca na metade da velocidade (ver travelSpeed abaixo)
+  movement: { hoverMeanSec: 12, speed: 0.5, micro: 0.7, approach: 0.35, spin: 0.75, yRange: 0.7 },
+
+  // Sereno: fala menos e anda mais devagar (metade do ritmo). Ver
+  // behaviors/ambientSpeech.js e normality.js pra descrição dos campos.
+  msgSpeed: 0.5,
+  travelSpeed: 0.5,
 
   // zen_breathing — repetível enquanto o Zen estiver ativo: facetas
   // afastam e voltam (respiração), tocado pelo relógio de assinatura normal
@@ -74,5 +80,19 @@ export const zen = {
     zen_aura: ['Quase virei um ser vivo...', 'Quase eu toquei o user no físico...'],
     // zen_much_more_excited: carinho contínuo demais durante o zen_breathing
     zen_annoyed: ['Você está atrapalhando minha concentração...', 'Para... eu preciso ficar quieto...', 'Isso não é hora de carinho!'],
+    // Falas espontâneas de calma/autoajuda/lo-fi, em ritmo lento (msgSpeed 0.5)
+    ambient: [
+      'Respira fundo comigo... inspira, expira.',
+      'Que tal um lo-fi pra acalmar a mente?',
+      'Uma coisa de cada vez. Sem pressa.',
+      'O momento presente é tudo que existe.',
+      'Recomendo uns beats de chuva pra concentrar.',
+      'Solta os ombros. Relaxa a mandíbula.',
+      'Você tá indo bem. De verdade.',
+      'O silêncio também é uma resposta.',
+      'Deixa o pensamento passar, como nuvem no céu.',
+      'Um chá quente cairia bem agora, né?',
+      'Gratidão pelas pequenas coisas de hoje.',
+    ],
   },
 };

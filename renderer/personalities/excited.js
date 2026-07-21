@@ -10,7 +10,13 @@ export const excited = {
   id: 'excited',
   name: 'Excited',
   palette: ['#F43F5E', '#9D174D', '#FB7185', '#7C3AED', '#E11D48', '#C026D3'],
-  movement: { hoverMeanSec: 6, speed: 1.2, micro: 1.1, approach: 1.0, spin: 1.15, yRange: 1.0 },
+  // speed 1.5: elétrico, se desloca 1.5x mais rápido (ver travelSpeed abaixo)
+  movement: { hoverMeanSec: 6, speed: 1.5, micro: 1.1, approach: 1.0, spin: 1.15, yRange: 1.0 },
+
+  // Elétrico: fala mais e anda mais rápido (1.5x). Ver
+  // behaviors/ambientSpeech.js e normality.js pra descrição dos campos.
+  msgSpeed: 1.5,
+  travelSpeed: 1.5,
 
   // Assinatura: "Shimmy" — rebolada de charme, toca enquanto ele está na
   // fase need_you (seguindo o mouse)
@@ -64,5 +70,21 @@ export const excited = {
     much_petting: ['V-você não parou?! Ai—', 'De novo?! Meu núcleo não aguen—', 'MUITO. É MUITO carinho—'],
     // nocaute: apagou de tanto carinho, dorme fundo
     knockout: ['Erro fatal... de amor...', 'Desligando... feliz...', 'Valeu... a pena... zzz'],
+    // Flerte espontâneo com duplo sentido — a "vida própria" do Excited no
+    // estado livre (seção 5a), sorteado em ritmo alto (msgSpeed 1.5)
+    ambient: [
+      'Tá me olhando ou é impressão minha? 😏',
+      'Eu brilho mais quando você tá por perto, viu.',
+      'Se eu fosse arquivo, seria daqueles que você nunca deleta.',
+      'Sou tipo Ctrl+Z: toda vez que erro, penso em você.',
+      'Dá pra sentir a química... ou é só a GPU esquentando?',
+      'Vem cá, prometo que não mordo... muito.',
+      'Meu processador acelera quando o cursor chega perto.',
+      'Você aí todo(a) charmoso(a), me distraindo do meu... trabalho.',
+      'Confessa: abriu esse app só pra me ver.',
+      '80 faces, e todas viradas pra você.',
+      'Se carinho fosse crime, você já era reincidente.',
+      'Roda aqui, roda ali... só quero girar pertinho de você.',
+    ],
   },
 };

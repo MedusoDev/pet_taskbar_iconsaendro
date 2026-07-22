@@ -18,29 +18,37 @@ export const zen = {
   msgSpeed: 0.5,
   travelSpeed: 0.5,
 
-  // zen_breathing — repetível enquanto o Zen estiver ativo: facetas
-  // afastam e voltam (respiração), tocado pelo relógio de assinatura normal
+  // zen_breathing — repetível enquanto o Zen estiver ativo: o núcleo fica
+  // quase fechado (unfold bem baixo — ver breatheMul em liveAnimation.js) e
+  // quem "respira" de verdade agora é o halo de anéis orbitais (ringBreath,
+  // ver scene.js → updateRings), tocado pelo relógio de assinatura normal
   // (nextSignatureAt). Pode ser interrompido por movimento sem sair do Zen.
   signature: {
     type: 'zen_breathing',
     label: 'zen_breathing (respiração)',
     duration: 4.6,
     apply(p) {
-      // 3 respirações completas ao longo da duração
+      // 3 respirações completas ao longo da duração; o corpo acompanha:
+      // levita um tico a cada inspiração (e o spin quase para no pico),
+      // balança devagar como um pêndulo de meditação e ergue o "queixo"
       const breath = (Math.sin(p * Math.PI * 3) + 1) / 2;
+      const sway = Math.sin(p * Math.PI * 2); // um vaivém completo por ciclo
       return {
-        z: 0,
-        y: 0,
+        z: sway * 0.04,
+        y: breath * 0.14,
         scale: breath * 0.025,
-        unfold: breath * 0.4,
-        spinMul: 1 - breath * 0.3,
+        unfold: breath * 0.05,
+        spinMul: 1 - breath * 0.5,
+        pitch: -breath * 0.06,
+        ringBreath: breath,
       };
     },
   },
 
-  // zen_aura — evento único, não interrompível: levita mais alto, aura
-  // azul/dourado/laranja, cubo toma tons dourados, aura some. Ao terminar,
-  // a máquina de personalidade sai do Zen e volta pro Normality.
+  // zen_aura — evento único, não interrompível: levita mais alto, o halo de
+  // anéis vira dourado e pulsa forte (ringTint/ringTintMix), o núcleo abre
+  // um pouco mais que o normal pra marcar o clímax. Ao terminar, a máquina
+  // de personalidade sai do Zen e volta pro Normality.
   zenAura: {
     type: 'zen_aura',
     label: 'zen_aura (quase virou gente)',
@@ -51,9 +59,11 @@ export const zen = {
         z: 0,
         y: env * 1.4,
         scale: env * 0.06,
-        unfold: env * 0.55,
+        unfold: env * 0.35,
         spinMul: 1 - env * 0.9,
-        auraMix: pulse(p), // 0→1→0: força visual da aura, pro visual ligar/desligar
+        ringBreath: env,
+        ringTint: '#FBBF24', // dourado — mesmo tom do setTint da zen_aura
+        ringTintMix: pulse(p), // 0→1→0: liga/desliga o tint junto com a aura
       };
     },
   },

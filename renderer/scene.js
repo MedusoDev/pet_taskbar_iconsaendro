@@ -13,6 +13,8 @@ const COLORS = [
 // Mesma escala do portfólio: gem de raio 1.5.
 export const GEM_RADIUS = 1.5;
 
+const clamp01 = (v) => Math.min(Math.max(v, 0), 1);
+
 // Proporção unidades-de-mundo/pixel fixa (3.84 de meia-altura pra 160px →
 // 0.024/px). A altura da janela agora varia com o setup de monitores (main.js
 // estica a faixa pra cobrir o chão de cada tela), então a meia-altura da
@@ -152,6 +154,248 @@ export function initScene(canvas) {
   gem.add(mesh, edges);
   scene.add(gem);
 
+  // ── Zen: núcleo + anéis orbitais ──────────────────────────────────────────
+  // Só o Zen usa isso: em vez de "respirar" abrindo as facetas como todo
+  // mundo, o núcleo dele fica quase fechado (ver breatheMul em
+  // liveAnimation.js + unfold reduzido em personalities/zen.js) e a
+  // respiração migra pra um halo de dois anéis finos precessionando em eixos
+  // cruzados, tipo giroscópio suspenso — silhueta bem diferente do "ouriço"
+  // facetado das outras personalidades. Ligam/desligam suave (fade + escala)
+  // ao entrar/sair do Zen; ganham tint dourado na zen_aura e vermelho na
+  // zen_much_more_excited (ver zenPose.ringTint em liveAnimation.js).
+  const RING_COLOR_A = new THREE.Color('#22D3EE'); // ciano — paleta do Zen
+  const RING_COLOR_B = new THREE.Color('#34D399'); // verde-água — paleta do Zen
+  const ringGroup = new THREE.Group();
+  gem.add(ringGroup);
+
+  function makeRing(radius, tube, tiltX, tiltZ, color) {
+    const pivot = new THREE.Group();
+    pivot.rotation.set(tiltX, 0, tiltZ);
+    const geo = new THREE.TorusGeometry(radius, tube, 8, 96);
+    const mat = new THREE.MeshBasicMaterial({
+      color: color.clone(),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    pivot.add(new THREE.Mesh(geo, mat));
+    ringGroup.add(pivot);
+    return { pivot, mat, baseColor: color };
+  }
+
+  const ringA = makeRing(GEM_RADIUS * 1.55, 0.018, THREE.MathUtils.degToRad(62), THREE.MathUtils.degToRad(8), RING_COLOR_A);
+  const ringB = makeRing(GEM_RADIUS * 1.92, 0.014, THREE.MathUtils.degToRad(-46), THREE.MathUtils.degToRad(-15), RING_COLOR_B);
+  const ringTintColor = new THREE.Color();
+  let ringMix = 0; // 0 = escondido, 1 = Zen ativo — transição suave (damp)
+  let ringPrecessA = 0, ringPrecessB = Math.PI * 0.35;
+
+  // ── Cenário de humor atrás do gem: lótus (Zen) e coração (Excited) ────────
+  // Preso ao GRUPO (acompanha posição/escala, não a rotação do mesh). O Zen
+  // "senta" numa flor de lótus que desabrocha pétala por pétala atrás dele;
+  // o Excited ganha um coração pulsando em batida lub-dub. Additive +
+  // depthTest off + renderOrder negativo = sempre um brilho POR TRÁS do
+  // corpo, nunca oclusão.
+  const backdrop = new THREE.Group();
+  gem.add(backdrop);
+
+  function makePetalGeo(len, wid) {
+    const s = new THREE.Shape();
+    s.moveTo(0, 0.55);
+    s.quadraticCurveTo(wid, 0.55 + len * 0.38, 0, 0.55 + len);
+    s.quadraticCurveTo(-wid, 0.55 + len * 0.38, 0, 0.55);
+    return new THREE.ShapeGeometry(s, 10);
+  }
+
+  function makeLotusLayer(count, len, wid, hex, z) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(hex), transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+      side: THREE.DoubleSide,
+    });
+    const layer = new THREE.Group();
+    layer.position.z = z;
+    const geo = makePetalGeo(len, wid);
+    const petals = [];
+    for (let i = 0; i < count; i++) {
+      const m = new THREE.Mesh(geo, mat);
+      m.rotation.z = (i / count) * Math.PI * 2;
+      m.renderOrder = -3;
+      layer.add(m);
+      petals.push(m);
+    }
+    backdrop.add(layer);
+    return { layer, mat, petals, baseColor: new THREE.Color(hex) };
+  }
+
+  const lotusOuter = makeLotusLayer(8, 2.6, 0.52, '#34D399', -1.7);
+  const lotusInner = makeLotusLayer(6, 1.8, 0.44, '#22D3EE', -1.6);
+  let lotusMix = 0;
+
+  function makeHeartGeo(scale) {
+    const s = new THREE.Shape();
+    s.moveTo(0.5, 0.5);
+    s.bezierCurveTo(0.5, 0.5, 0.4, 0, 0, 0);
+    s.bezierCurveTo(-0.6, 0, -0.6, 0.7, -0.6, 0.7);
+    s.bezierCurveTo(-0.6, 1.1, -0.3, 1.54, 0.5, 1.9);
+    s.bezierCurveTo(1.2, 1.54, 1.6, 1.1, 1.6, 0.7);
+    s.bezierCurveTo(1.6, 0.7, 1.6, 0, 1, 0);
+    s.bezierCurveTo(0.7, 0, 0.5, 0.5, 0.5, 0.5);
+    const g = new THREE.ShapeGeometry(s, 10);
+    g.center();
+    g.rotateZ(Math.PI); // ponta pra baixo
+    g.scale(scale, scale, 1);
+    return g;
+  }
+
+  function makeHeart(scale, hex, z, order) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(hex), transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+      side: THREE.DoubleSide,
+    });
+    const m = new THREE.Mesh(makeHeartGeo(scale), mat);
+    m.position.z = z;
+    m.renderOrder = order;
+    backdrop.add(m);
+    return { mesh: m, mat };
+  }
+
+  const heartBig = makeHeart(2.3, '#F43F5E', -1.8, -5);
+  const heartCore = makeHeart(1.5, '#FB7185', -1.75, -4);
+  let heartMix = 0;
+  const backdropTintTmp = new THREE.Color();
+
+  // lotus/heart: alvo 0..1 (fade interno por damp). lotusBreath pulsa as
+  // pétalas junto com a respiração; tint/tintMix reaproveitam o tint do halo
+  // (dourado na aura, vermelho na transição); heartPulse é o envelope da
+  // batida lub-dub calculado em liveAnimation.js.
+  function updateBackdrop(delta, { lotus = 0, lotusBreath = 0, tint = null, tintMix = 0, heart = 0, heartPulse = 0 } = {}) {
+    lotusMix = THREE.MathUtils.damp(lotusMix, lotus, 1.6, delta);
+    heartMix = THREE.MathUtils.damp(heartMix, heart, 2.5, delta);
+
+    const lotusOn = lotusMix > 0.004;
+    lotusOuter.layer.visible = lotusInner.layer.visible = lotusOn;
+    if (lotusOn) {
+      // pétalas desabrocham em sequência ao redor do círculo
+      for (const L of [lotusOuter, lotusInner]) {
+        const n = L.petals.length;
+        for (let i = 0; i < n; i++) {
+          const v = clamp01((lotusMix - (i / n) * 0.5) / 0.5);
+          L.petals[i].scale.setScalar(Math.max(v, 0.0001) * (1 + lotusBreath * 0.06));
+        }
+        if (tint && tintMix > 0.001) {
+          backdropTintTmp.set(tint);
+          L.mat.color.copy(L.baseColor).lerp(backdropTintTmp, tintMix);
+        } else {
+          L.mat.color.copy(L.baseColor);
+        }
+      }
+      lotusOuter.layer.rotation.z += delta * 0.05;
+      lotusInner.layer.rotation.z -= delta * 0.08;
+      lotusOuter.mat.opacity = lotusMix * (0.34 + lotusBreath * 0.2);
+      lotusInner.mat.opacity = lotusMix * (0.28 + lotusBreath * 0.22);
+    }
+
+    const heartOn = heartMix > 0.004;
+    heartBig.mesh.visible = heartCore.mesh.visible = heartOn;
+    if (heartOn) {
+      heartBig.mesh.scale.setScalar(heartMix * (1 + heartPulse * 0.16));
+      heartCore.mesh.scale.setScalar(heartMix * (1 + heartPulse * 0.24));
+      heartBig.mat.opacity = heartMix * (0.2 + heartPulse * 0.3);
+      heartCore.mat.opacity = heartMix * (0.16 + heartPulse * 0.34);
+    }
+  }
+
+  // ── Rastro de facetas (Zen viajando): triângulos que caem e se desfazem ──
+  // Vivem no MUNDO (scene), não no gem: ficam pra trás quando ele viaja,
+  // caindo como pétalas — mas são facetas, tingidas pela paleta atual.
+  const TRAIL_MAX = 26;
+  const trailFacets = [];
+  {
+    const triGeo = new THREE.BufferGeometry();
+    const r = 0.2;
+    triGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+      0, r, 0, -r * 0.87, -r * 0.5, 0, r * 0.87, -r * 0.5, 0,
+    ]), 3));
+    for (let i = 0; i < TRAIL_MAX; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+      });
+      const m = new THREE.Mesh(triGeo, mat);
+      m.visible = false;
+      scene.add(m);
+      trailFacets.push({ mesh: m, mat, age: 0, life: 1, vx: 0, vy: 0, spin: 0 });
+    }
+  }
+  let trailCursor = 0;
+
+  function emitTrailFacet(x, y) {
+    const f = trailFacets[trailCursor];
+    trailCursor = (trailCursor + 1) % TRAIL_MAX;
+    f.age = 0;
+    f.life = 1.0 + Math.random() * 0.7;
+    f.vx = (Math.random() - 0.5) * 0.8;
+    f.vy = -(0.4 + Math.random() * 0.6);
+    f.spin = (Math.random() - 0.5) * 6;
+    f.mesh.position.set(x + (Math.random() - 0.5) * 1.2, y + (Math.random() - 0.5) * 1.2, -0.5);
+    f.mesh.rotation.z = Math.random() * Math.PI * 2;
+    f.mesh.scale.setScalar(0.8 + Math.random() * 0.7);
+    f.mat.color.copy(COLORS[Math.floor(Math.random() * COLORS.length)]);
+    f.mesh.visible = true;
+  }
+
+  function updateTrail(delta) {
+    for (const f of trailFacets) {
+      if (!f.mesh.visible) continue;
+      f.age += delta;
+      if (f.age >= f.life) {
+        f.mesh.visible = false;
+        f.mat.opacity = 0;
+        continue;
+      }
+      f.vy -= delta * 1.6; // gravidade suave
+      f.mesh.position.x += f.vx * delta;
+      f.mesh.position.y += f.vy * delta;
+      f.mesh.rotation.z += f.spin * delta;
+      f.mat.opacity = (1 - f.age / f.life) * 0.8;
+    }
+  }
+
+  // active: Zen ligado? breath: envelope 0-1 da respiração (pulsa raio/
+  // opacidade); tint/tintMix: cor especial (aura dourada / transição
+  // vermelha) por cima da cor base do anel.
+  function updateRings(delta, { active = false, breath = 0, tint = null, tintMix = 0 } = {}) {
+    ringMix = THREE.MathUtils.damp(ringMix, active ? 1 : 0, 2.2, delta);
+    ringGroup.visible = ringMix > 0.003;
+    if (!ringGroup.visible) return;
+
+    // Precessão cruzada: cada anel cambaleia no seu próprio ritmo, nunca
+    // sincroniza com o outro — reforça a leitura de "giroscópio vivo".
+    ringPrecessA += delta * 0.24;
+    ringPrecessB -= delta * 0.17;
+    ringA.pivot.rotation.y = ringPrecessA;
+    ringB.pivot.rotation.y = ringPrecessB;
+
+    const pulse = 1 + breath * 0.08;
+    ringA.pivot.scale.setScalar(ringMix * pulse);
+    ringB.pivot.scale.setScalar(ringMix * pulse * 1.02);
+
+    const baseOpacity = 0.5 + breath * 0.4;
+    ringA.mat.opacity = ringMix * baseOpacity;
+    ringB.mat.opacity = ringMix * baseOpacity * 0.75;
+
+    if (tint && tintMix > 0.001) {
+      ringTintColor.set(tint);
+      ringA.mat.color.copy(ringA.baseColor).lerp(ringTintColor, tintMix);
+      ringB.mat.color.copy(ringB.baseColor).lerp(ringTintColor, tintMix);
+    } else {
+      ringA.mat.color.copy(ringA.baseColor);
+      ringB.mat.color.copy(ringB.baseColor);
+    }
+  }
+
   window.addEventListener('resize', () => {
     const newVh = viewHalfHeight();
     const newAspect = window.innerWidth / window.innerHeight;
@@ -185,12 +429,23 @@ export function initScene(canvas) {
     gemGeo.computeBoundingSphere(); // mantém o raycast (clique) correto
   }
 
+  const rainbowTmp = new THREE.Color();
+  const faceDisplayTmp = new THREE.Color();
+
   // Animações visuais contínuas: órbita das luzes (centrada NO GEM, para a
   // iluminação ficar constante pela tela toda), pulso do emissive, transição
   // de cor por face e o estado de energia (evento shutdown) / sono.
+  // rainbow (0..1): tinge as faces num arco-íris cíclico por cima da paleta
+  // (respiração do Zen — sobe conforme se aproxima da zen_aura).
+  // glowBoost (0..~1.4): flash de brilho extra (morph de personalidade,
+  // batida do coração do Excited).
   function updateVisuals(t, delta, state = {}) {
     const power = state.power !== undefined ? state.power : 1;
     const sleeping = !!state.sleeping;
+    const rainbow = state.rainbow || 0;
+    const glowBoost = state.glowBoost || 0;
+
+    updateTrail(delta);
 
     const gx = gem.position.x;
     const gy = gem.position.y;
@@ -229,13 +484,17 @@ export function initScene(canvas) {
     const mood = (Math.sin(t * 0.18) + 1) / 2;
     emissiveTint.lerpColors(COLORS[0], COLORS[2], mood);
     if (siteTintColor && siteTintMix > 0.001) emissiveTint.lerp(siteTintColor, siteTintMix);
+    if (rainbow > 0.001) {
+      rainbowTmp.setHSL((t * 0.1) % 1, 0.9, 0.6);
+      emissiveTint.lerp(rainbowTmp, rainbow * 0.85);
+    }
     material.emissive.copy(emissiveTint);
     const baseEmissive = sleeping
       ? 0.12 + (Math.sin(t * 1.2) + 1) * 0.05
       : 0.55;
     material.emissiveIntensity = THREE.MathUtils.damp(
       material.emissiveIntensity,
-      baseEmissive * (0.04 + 0.96 * power),
+      baseEmissive * (0.04 + 0.96 * power) * (1 + rainbow * 0.5 + glowBoost),
       2,
       delta
     );
@@ -252,15 +511,27 @@ export function initScene(canvas) {
         if (next === faceTargetIdx[f]) next = (next + 1) % COLORS.length;
         faceTargetIdx[f] = next;
       }
+      // Rainbow: por cima da cor "real" da face (sem mutá-la — quando o
+      // arco-íris acaba, a paleta continua de onde estava), cada face num
+      // ponto do círculo cromático (espalhado por razão áurea) girando devagar
+      let outC = c;
+      if (rainbow > 0.001) {
+        rainbowTmp.setHSL((f * 0.618 + t * 0.1) % 1, 0.9, 0.62);
+        outC = faceDisplayTmp.copy(c).lerp(rainbowTmp, rainbow);
+      }
       for (let v = 0; v < 3; v++) {
         const idx = (f * 3 + v) * 3;
-        colorAttr.array[idx] = c.r;
-        colorAttr.array[idx + 1] = c.g;
-        colorAttr.array[idx + 2] = c.b;
+        colorAttr.array[idx] = outC.r;
+        colorAttr.array[idx + 1] = outC.g;
+        colorAttr.array[idx + 2] = outC.b;
       }
     }
     colorAttr.needsUpdate = true;
   }
 
-  return { scene, camera, renderer, gem, mesh, material, applyUnfold, updateVisuals, setTint, setPalette };
+  return {
+    scene, camera, renderer, gem, mesh, material,
+    applyUnfold, updateVisuals, updateRings, updateBackdrop, emitTrailFacet,
+    setTint, setPalette,
+  };
 }

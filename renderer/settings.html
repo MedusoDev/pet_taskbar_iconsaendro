@@ -95,6 +95,39 @@
       }
       .btn-primary:hover { background: #8b4ff0; }
       .restart-note { color: var(--accent2); font-size: 11px; margin-top: 2px; }
+      .anim-preview-row { display: flex; gap: 16px; margin-bottom: 16px; }
+      .anim-canvas-wrap {
+        flex: 0 0 auto; width: 520px; height: 560px; border-radius: 12px;
+        background: radial-gradient(circle at 50% 40%, rgba(124,58,237,.16), transparent 70%), var(--panel);
+        border: 1px solid var(--line); display: flex; flex-direction: column;
+        align-items: center; justify-content: center; padding: 14px; gap: 12px;
+      }
+      #anim-preview-canvas { width: 480px; height: 480px; filter: drop-shadow(0 0 18px rgba(124,58,237,.35)); }
+      .mode-row { display: flex; gap: 6px; width: 100%; }
+      .mode-btn {
+        flex: 1; padding: 7px 4px; border-radius: 8px; border: 1px solid var(--line);
+        background: var(--bg2); color: var(--txt); cursor: pointer; font-size: 12px;
+        text-align: center;
+      }
+      .mode-btn:hover { border-color: var(--mode-color, var(--accent)); }
+      .mode-btn.active {
+        border-color: var(--mode-color, var(--accent));
+        background: color-mix(in srgb, var(--mode-color, var(--accent)) 22%, var(--bg2));
+        box-shadow: 0 0 0 1px var(--mode-color, var(--accent)) inset;
+      }
+      .anim-list { flex: 1; min-width: 0; max-height: 380px; overflow-y: auto; padding-right: 4px; }
+      .anim-group-title {
+        font-size: 11px; color: var(--muted); text-transform: uppercase;
+        letter-spacing: .04em; margin: 10px 0 4px;
+      }
+      .anim-group-title:first-child { margin-top: 0; }
+      .anim-btn {
+        display: block; width: 100%; text-align: left; padding: 7px 10px; margin-bottom: 4px;
+        border-radius: 6px; border: 1px solid var(--line); background: var(--bg2); color: var(--txt);
+        cursor: pointer; font-size: 12.5px;
+      }
+      .anim-btn:hover { border-color: var(--accent); }
+      .anim-btn.playing { background: rgba(124,58,237,.28); border-color: var(--accent); }
     </style>
   </head>
   <body>

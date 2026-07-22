@@ -3,9 +3,6 @@
 // behaviors/personalityState.js) — nunca escolhida por dia, nunca a partir
 // do Normality direto.
 
-const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
-const pulse = (p) => Math.sin(clamp(p, 0, 1) * Math.PI);
-
 export const excited = {
   id: 'excited',
   name: 'Excited',
@@ -18,19 +15,27 @@ export const excited = {
   msgSpeed: 1.5,
   travelSpeed: 1.5,
 
-  // Assinatura: "Shimmy" — rebolada de charme, toca enquanto ele está na
-  // fase need_you (seguindo o mouse)
+  // Assinatura: "Shimmy" — sambinha de charme: o quadril desloca pro lado
+  // CONTRA o tilt (rebolado de verdade, não só balanço), três pulinhos no
+  // ritmo, e fecha com pose final — infla, abre as facetas e dá uma
+  // "olhadinha por cima do ombro" (yaw). Energia decai até a pose.
   signature: {
     type: 'shimmy',
     label: 'Shimmy (requebra de charme)',
-    duration: 1.6,
+    duration: 1.8,
     apply(p) {
+      const env = 1 - p;
+      const hips = Math.sin(p * 1.8 * 11);            // requebra vai-e-vem
+      const beat = Math.abs(Math.sin(p * Math.PI * 3)); // 3 pulinhos no ritmo
+      const finale = p > 0.82 ? Math.sin(((p - 0.82) / 0.18) * Math.PI) : 0;
       return {
-        z: Math.sin(p * 1.6 * 14) * 0.28 * (1 - p),
-        y: pulse(p) * 0.35,
-        scale: pulse(p) * 0.05,
-        unfold: pulse(p) * 0.15,
+        z: hips * 0.3 * env,
+        x: -hips * 0.12 * env,
+        y: beat * 0.3 * env + finale * 0.18,
+        scale: beat * 0.04 * env + finale * 0.09,
+        unfold: beat * 0.12 * env + finale * 0.3,
         spinMul: 1,
+        yaw: finale * 0.35,
       };
     },
   },

@@ -96,12 +96,20 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
   state.zenBreathingActive = false;
   state.petCharge = 0;
 
+  // Morph de troca de humor: TODA transição de personalidade toca a mesma
+  // animação-relâmpago (enrola girando → flash → assenta com wobble), por
+  // cima do que estiver rolando — a pose em si vive em liveAnimation.js.
+  function startMorph(now) {
+    state.morphAnim = { start: now };
+  }
+
   // ── Normality ⇄ Zen ──
 
   function enterZen(now) {
     if (state.mode !== 'normality') return;
     state.mode = 'zen';
     state.personality = zen;
+    startMorph(now);
     setPalette(zen.palette);
     state.signatureAnim = null;
     // Viagem em andamento brigaria com a pose de respiração imóvel (e o
@@ -122,6 +130,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
   function exitZenToNormality(reason, now) {
     state.mode = 'normality';
     state.personality = normality;
+    startMorph(now);
     state.zenAuraActive = false;
     state.zenBreathingActive = false;
     setTint(null);
@@ -176,6 +185,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
     state.mode = 'excited';
     state.petCharge = 0;
     state.personality = excited;
+    startMorph(now);
     state.zen = null;
     state.zenAuraActive = false;
     state.zenBreathingActive = false;
@@ -275,6 +285,7 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
   function exitExcitedToNormality(reason, now) {
     state.mode = 'normality';
     state.personality = normality;
+    startMorph(now);
     state.excitedState = null;
     // Rubor: se o cafuné ainda está rolando na hora da saída, a cor do
     // Excited se mantém por mais alguns segundos (solta quando o carinho
@@ -349,9 +360,13 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
         enterExcited(now);
         return null;
       }
-      // treme cada vez mais forte, "explode" no final
+      // treme cada vez mais forte, "explode" no final — o halo também perde
+      // a calma: vira vermelho junto com o tint do material (ZEN_TRANSITION_TINT)
       const shake = Math.sin(p * 40) * 0.12 * p;
-      return { z: shake, y: 0, scale: p * 0.08, unfold: p * 0.4, spinMul: 1 + p * 2 };
+      return {
+        z: shake, y: 0, scale: p * 0.08, unfold: p * 0.4, spinMul: 1 + p * 2,
+        ringBreath: 1, ringTint: ZEN_TRANSITION_TINT, ringTintMix: p,
+      };
     }
 
     if (z.aura) {
@@ -360,7 +375,9 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
         exitZenToNormality('zen_aura terminou', now);
         return null;
       }
-      return zen.zenAura.apply(clamp(p, 0, 1));
+      const pose = zen.zenAura.apply(clamp(p, 0, 1));
+      pose.rainbow = 1; // clímax: arco-íris na força máxima
+      return pose;
     }
 
     // zen_much_more_excited: carinho contínuo por >= 20s enquanto respira
@@ -400,7 +417,11 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
 
       const cyclesSec = zen.signature.duration;
       const p = ((now - b.start) / 1000 % cyclesSec) / cyclesSec;
-      return zen.signature.apply(p);
+      const pose = zen.signature.apply(p);
+      // Arco-íris da respiração: começa suave e esquenta conforme a
+      // zen_aura se aproxima (a cor "carrega" junto com a meditação)
+      pose.rainbow = 0.3 + 0.55 * clamp((now - b.start) / (CONFIG.ritmo.breathingToAuraSec * 1000), 0, 1);
+      return pose;
     }
 
     return null;
@@ -542,7 +563,16 @@ export function createPersonalityState({ state, setPalette, setTint, logEvent, s
       return null;
     }
 
-    return null;
+    // Ofegante implorando: respiração curta e rápida, o corpo inteiro
+    // pedindo — pose própria (suprime o shimmy enquanto implora)
+    const pant = (Math.sin(now / 130) + 1) / 2;
+    return {
+      z: Math.sin(now / 210) * 0.03,
+      y: pant * 0.07,
+      scale: pant * 0.02,
+      unfold: 0.08 + pant * 0.1,
+      spinMul: 1.15,
+    };
   }
 
   // fase free (seção 5a/5b): anda errático (wander.js) e flerta sozinho

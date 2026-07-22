@@ -28,7 +28,7 @@ de conversa/código, não strings visíveis. Fonte da verdade: o código em
 | **Hover** | paira em volta de um poleiro (âncora) com micro-deriva por ruído Simplex — o estado da maior parte do tempo | `wander.js` → `updateRestPosition` |
 | **Relocate** | de tempos em tempos (agenda irregular estilo Poisson, média por personalidade) *decide* mudar de poleiro: arrancada → viagem ease-in-out → chegada. Às vezes a viagem é "de visita" ao mouse (chance sobe com `approach`) | `startRelocate` / `scheduleNextRelocate` / `pickWanderTarget` |
 | **Body Feel** | o corpo sente o movimento: inclina (bank) na direção da velocidade, estica na arrancada, amassa na chegada | `liveAnimation.js` → `bankZ`/`pitchVel` + `takeoffAt`/`landAt` |
-| **Breathe** | desdobramento sutil das 80 faces, com ritmo E amplitude vagando por ruído (sem frequência fixa) | `breathePhase` → `applyUnfold` |
+| **Breathe** | desdobramento sutil das 80 faces, com ritmo E amplitude vagando por ruído (sem frequência fixa). No Zen fica quase nulo — a respiração migra pro halo de anéis (ver seção Zen) | `breathePhase` → `applyUnfold` (`zenCalm` reduz no Zen) |
 | **Organic Tilt** | inclinação orgânica em X/Z + spin em Y com velocidade vagando por ruído (nunca metrônomo) | `tiltX` / `tiltZ` / `spinRate` |
 | **Face Mood** | cada uma das 80 faces troca de cor sozinha dentro da paleta da personalidade ativa, cada uma no seu ritmo | `scene.js` → `updateVisuals` |
 | **Emissive Pulse** | o brilho geral pulsa entre as duas cores-âncora da paleta (+ tint do Ico_Eye por cima quando ativo) | `scene.js` → `updateVisuals` |
@@ -55,8 +55,8 @@ Suprimido inteiro no modo Excited e durante shutdown/zen_aura.
 
 | Nome | Quando | O que faz |
 |---|---|---|
-| **Fidget** (tiques) | a partir de 14s, repete a cada 4–9s | sorteia 1 de 3: **Hop** (pulinho) / **Shake** (giro seco vai-e-volta) / **Shiver** (arrepio nas facetas) |
-| **Stretch** (espreguiçada) | 32s, 1x por ciclo | facetas abrem + escala +5%, envelope sobe-segura-desce, 4.2s |
+| **Fidget** (tiques) | a partir de 14s, repete a cada 4–9s | sorteia 1 de 2: **Hop** (pulinho com estica-e-amassa: alonga na subida, achata no pouso) / **Shake** (giro seco vai-e-volta) |
+| **Stretch** (espreguiçada) | 32s, 1x por ciclo | facetas abrem + escala +5% + bocejo (inclina pra trás "olhando pro alto"), envelope sobe-segura-desce, 4.2s |
 | **Shutdown Event** | sorteado entre 30–50s, 1x por ciclo | desliga (luzes caem, cor escurece, facetas fecham) → cai → quica 2x → religa assustado → flutua de volta. **Prioridade sobre tudo** enquanto ativo |
 | **Sleep** | 65s | pousa no chão, rotação quase nula, emissive baixo, facetas quase fechadas, "z z z" flutuando ao lado |
 | **Wake Startle** | qualquer input dormindo | facetas saltam pra 1.0 + giro rápido; reancora onde estava e volta a flutuar |
@@ -72,6 +72,20 @@ Suprimido inteiro no modo Excited e durante shutdown/zen_aura.
 | Nome | Gatilho | O que faz |
 |---|---|---|
 | **Site Tint** | janela ativa do navegador muda de categoria (Spotify 🎵 / Email ✉️ / X ✕) | tinge cor + emissive na cor da categoria, ícone flutuando acima do gem, fala só quando a categoria MUDA |
+
+## Morph — transição universal de personalidade
+
+TODA troca de modo (Normality ⇄ Zen ⇄ Excited, em qualquer direção) toca a
+mesma animação-relâmpago de 1.1s por cima do que estiver rolando
+(`liveAnimation.js` lê `state.morphAnim`; disparada por `startMorph` na
+máquina de personalidade):
+
+1. **enrola** (0–45%): gira cada vez mais rápido (spin até 7x), encolhe e
+   sobe carregando energia, brilho subindo;
+2. **pop** (45–62%): flash de luz (`glowBoost` até ~1.4) e a escala estoura
+   — a "casca" do humor antigo sai;
+3. **assenta** (62–100%): wobble decaindo enquanto a paleta nova toma conta
+   (as faces já perseguem as cores novas por lerp).
 
 ## Máquina de personalidade (`personalityState.js`)
 
@@ -98,23 +112,46 @@ Normality ──(barra cheia + cafuné contínuo ~4s = supercarga)──▶ Exci
         shy2 ──▶ nocaute: shutdown + z z z por ~1min ──▶ Normality
 ```
 
-### Zen (paleta azul/ciano/verde-água, movimento lento)
+### Normality (paleta roxo/âmbar, a base)
 
 | Nome | Gatilho | O que faz |
 |---|---|---|
-| **zen_breathing** | assinatura do Zen (pose com prioridade, repetível) | facetas afastam e voltam em 3 respirações por ciclo de 4.6s, spin desacelera junto. Entrar no Zen estacionado tem fala própria ("perfeito pro autocontrole") — ele não pede pra sair |
-| **zen_aura** | 2min contínuos respirando | evento único NÃO interrompível (6.5s): levita 1.4 mais alto, facetas 0.55, spin quase para, tint dourado. Ao terminar volta pro Normality |
-| **zen_much_more_excited** | cafuné contínuo ~6s durante o breathing | transição de 3.2s: treme cada vez mais forte, infla, gira acelerando, tint vermelho — e "explode" no Excited |
+| **Flourish** (floreio de moeda) | assinatura, relógio normal (25–55s de idle) | truque de gamer em 3 atos (2.9s): agacha carregando o pulo (amassa, fecha, inclina pra trás) → salta em arco dando UMA pirueta completa em Y com as facetas flarando no ápice (moeda jogada pro alto) → pousa com overshoot quicando e um pop de facetas que assenta |
+
+### Zen (paleta azul/ciano/verde-água, movimento lento)
+
+Diferente das outras personalidades, o Zen troca a silhueta e não só a cor: o
+núcleo facetado fica quase fechado (unfold reduzido a um fiapo) e ganha um
+**halo de dois anéis orbitais** (`scene.js` → `updateRings`) mais uma **flor
+de lótus** que desabrocha atrás dele — só existem no Zen, somem com fade
+suave ao entrar/sair de qualquer outro modo.
+
+| Nome | Gatilho | O que faz |
+|---|---|---|
+| **Halo (anéis orbitais)** | contínua, só no Zen | 2 anéis finos ciano/verde-água precessionam cada um no seu ritmo ao redor do núcleo quase fechado; pulsam junto com a respiração (`ringBreath`) e viram dourado na zen_aura / vermelho na zen_much_more_excited (`ringTint`/`ringTintMix`) |
+| **Lótus** (`scene.js` → `updateBackdrop`) | contínua, só no Zen | flor de lótus de 2 camadas (8+6 pétalas ciano/verde-água, additive) se forma ATRÁS do corpo, pétala por pétala em sequência ao redor do círculo; camadas giram devagar em sentidos opostos, pulsam com a respiração e ganham o mesmo tint do halo (dourada na aura, vermelha na transição) |
+| **Rainbow** (arco-íris da meditação) | zen_breathing / zen_aura | durante a respiração as 80 faces ganham um arco-íris cíclico por cima da paleta (matiz espalhado por razão áurea, girando devagar) + brilho extra; a força COMEÇA suave (0.3) e sobe conforme a zen_aura se aproxima, chegando ao máximo (1.0) durante a própria aura |
+| **Rastro de facetas** | viajando (Relocate) em modo Zen | "pétalas" (facetas triangulares tingidas pela paleta) se soltam do corpo pelo caminho e caem no MUNDO — ficam pra trás girando, com gravidade suave, e se desfazem em ~1–1.7s |
+| **zen_breathing** | assinatura do Zen (pose com prioridade, repetível) | núcleo quase fechado (unfold mínimo), o halo é quem "respira" (raio/opacidade pulsam) em 3 respirações por ciclo de 4.6s; o corpo acompanha: levita um tico a cada inspiração (spin quase para no pico), balança devagar como pêndulo de meditação e ergue o "queixo" sutilmente. Entrar no Zen estacionado tem fala própria ("perfeito pro autocontrole") — ele não pede pra sair |
+| **zen_aura** | 2min contínuos respirando | evento único NÃO interrompível (6.5s): levita 1.4 mais alto, facetas 0.35, spin quase para, halo vira dourado pulsante (tint também no material). Ao terminar volta pro Normality |
+| **zen_much_more_excited** | cafuné contínuo ~6s durante o breathing | transição de 3.2s: treme cada vez mais forte, infla, gira acelerando, tint vermelho no material E no halo — e "explode" no Excited |
 
 ### Excited (paleta rosa/vermelho/roxo, movimento rápido)
 
+O Excited também ganhou silhueta própria: um **coração pulsando atrás do
+corpo** e a batida cardíaca no próprio brilho — ele está literalmente no cio.
+
 | Nome | Gatilho | O que faz |
 |---|---|---|
+| **Coração** (`scene.js` → `updateBackdrop`) | contínua, no Excited (some nas fases shy) | coração rosa de 2 camadas (additive) pulsa ATRÁS do corpo em batida **lub-dub** de verdade; acelera quando ele está caçando o mouse (7.5 vs 5 rad/s) |
+| **Heartbeat glow** | contínua, no Excited | o brilho do corpo (emissive) pulsa junto com o lub-dub do coração — dá pra VER o coração dele batendo |
+| **Rebolado** (estado livre) | fase free | onda lenta e sensual atravessando o corpo (Z e Y defasados) — ele dança sozinho se insinuando, por cima da vibração normal |
+| **Ofego** (please_pet) | fase please_pet | pose própria implorando: respiração curta e rápida (~7.7Hz), facetas entreabertas pulsando, spin acelerado — suprime o shimmy enquanto implora |
 | **Excited Chase** | fase need_you/please_pet, mouse em movimento | segue o mouse continuamente por âncora, a tela toda. Sem Relocate, sem tédio, sem Flinch — nada trava a perseguição |
 | **Excited Hops** | durante a perseguição | pulinhos (0.85) a cada 1.1–2.4s tentando alcançar o cursor |
 | **Orbit** (órbita de empolgação) | need_you + cursor parado (<160px/s) + sem cafuné rolando | dá voltas em elipse em torno do cursor (raio ~3.2×1.8, ~2.2rad/s) em vez de só encostar do lado; mouse voltou a mexer → volta pra perseguição |
 | **Vibe** (vibração de excitação) | qualquer fase de perseguição | pulsos curtos (450ms, a cada 2.2–5s) de tremedeira de alta frequência em Z + y — não consegue ficar parado |
-| **Shimmy** | assinatura, a cada 6–12s | requebra de charme: Z oscila decaindo + pulinho + facetas |
+| **Shimmy** | assinatura, a cada 6–12s | sambinha de charme (1.8s): o quadril desloca pro lado CONTRA o tilt em Z (rebolado de verdade), 3 pulinhos no ritmo com facetas pulsando, e fecha em pose final — infla, abre as facetas e dá uma "olhadinha por cima do ombro" (yaw) |
 | **Trapped** (preso estacionado) | Excited disparado com `parked` ativo | não persegue: fica no lugar respirando ofegante (facetas pulsando rápido, pulinhos, tremidinha), implorando pra sair a cada 2–3.5s; o clique nele mostra a súplica "ME SOLTA! Por favor—" [Vai!]. Sem liberar em 14s → se acaba ali mesmo (gotículas + blush) e volta pro Normality |
 | **Rush** (liberado) | unpark durante o Trapped | sai com a barra de carinho CHEIA (1.2) correndo pro mouse; ao chegar a <90px solta as gotículas + blush, alivia e volta pro Normality |
 | **need_you** | fase inicial (8–13s) | persegue/orbita jogando falas de coraçõezinhos (💜) a cada 1.2–2s |

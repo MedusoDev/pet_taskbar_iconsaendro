@@ -137,6 +137,16 @@ function createWindow() {
     clearInterval(windowPoll);
     win = null;
   });
+
+  applyIcosaendroVisibility();
+}
+
+// Aba Sistema → "Ativar o Icosaendro": esconde/mostra o overlay do pet sem
+// encerrar o app — ele continua rodando em segundo plano de qualquer jeito.
+function applyIcosaendroVisibility() {
+  if (!win || win.isDestroyed()) return;
+  if (config.sistema.ativo) win.show();
+  else win.hide();
 }
 
 // Renderer avisa quando o mouse está sobre o icosaedro (captura clique) ou
@@ -168,6 +178,7 @@ ipcMain.handle('config:save', (event, patch) => {
   config = configStore.deepMerge(config, patch);
   configStore.save(config);
   if (win && !win.isDestroyed()) win.webContents.send('config:changed', config);
+  applyIcosaendroVisibility();
   return config;
 });
 

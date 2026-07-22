@@ -31,7 +31,7 @@ function gemScreenX(state, camera, gem) {
 }
 
 export function updateAlive(state, refs, deps, now, delta, t) {
-  const { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects, prompt } = refs;
+  const { camera, gem, mesh, applyUnfold, updateRings, updateBackdrop, emitTrailFacet, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects, prompt } = refs;
   const { logEvent, speak, personalityCtl } = deps;
   const personality = state.personality;
   const isExcited = state.mode === 'excited';
@@ -49,14 +49,20 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   const zenPose = personalityCtl ? personalityCtl.update(now, delta) : null;
 
   // ── Animação de assinatura da personalidade ──
-  // Nem toda personalidade tem uma (Normality não tem).
+  // Pose { z, y, scale, unfold, spinMul } + eixos opcionais { x, pitch, yaw }
+  // (deslocamento lateral, "queixo" e pirueta — usados pelo flourish do
+  // Normality e pelo shimmy do Excited).
   let sigSpinMul = 1, sigY = 0, sigUnfold = 0, sigZ = 0, sigScale = 0;
+  let sigX = 0, sigPitch = 0, sigYaw = 0;
   if (zenPose) {
     sigZ = zenPose.z;
     sigY = zenPose.y;
     sigScale = zenPose.scale;
     sigUnfold = zenPose.unfold;
     sigSpinMul = zenPose.spinMul;
+    sigX = zenPose.x || 0;
+    sigPitch = zenPose.pitch || 0;
+    sigYaw = zenPose.yaw || 0;
   } else if (
     !state.signatureAnim &&
     !state.sleeping && !state.dragging && !state.releaseFall &&
@@ -84,7 +90,88 @@ export function updateAlive(state, refs, deps, now, delta, t) {
       sigScale = out.scale;
       sigUnfold = out.unfold;
       sigSpinMul = out.spinMul;
+      sigX = out.x || 0;
+      sigPitch = out.pitch || 0;
+      sigYaw = out.yaw || 0;
     }
+  }
+
+  // ── Morph de personalidade: pirueta-relâmpago + flash ao trocar de humor
+  // (disparado pela máquina de personalidade em toda transição de modo) ──
+  let morphY = 0, morphScale = 0, morphSpinMul = 1, morphZ = 0, morphGlow = 0;
+  if (state.morphAnim) {
+    const mp = (now - state.morphAnim.start) / 1100;
+    if (mp >= 1) {
+      state.morphAnim = null;
+    } else if (mp < 0.45) {
+      // enrola: gira cada vez mais rápido, encolhe e sobe carregando energia
+      const k = mp / 0.45;
+      morphSpinMul = 1 + k * 6;
+      morphScale = -0.12 * k;
+      morphY = 0.15 * k;
+      morphGlow = 0.4 * k;
+    } else if (mp < 0.62) {
+      // pop: flash de luz e a escala estoura — a "casca" do humor antigo sai
+      const k = (mp - 0.45) / 0.17;
+      morphSpinMul = 7 - k * 5;
+      morphScale = -0.12 + k * 0.3;
+      morphY = 0.15;
+      morphGlow = 0.4 + Math.sin(k * Math.PI) * 1.0;
+    } else {
+      // assenta: wobble decaindo enquanto a cor nova toma conta
+      const k = (mp - 0.62) / 0.38;
+      morphSpinMul = 2 - k;
+      morphScale = 0.18 * (1 - k);
+      morphY = 0.15 * (1 - k);
+      morphZ = Math.sin(k * Math.PI * 3) * 0.12 * (1 - k);
+      morphGlow = 0.4 * (1 - k);
+    }
+  }
+
+  // ── Excited: coração batendo (lub-dub) — pulsa o brilho do corpo e o
+  // coração-cenário atrás dele; acelera quando está caçando o mouse ──
+  let heartPulse = 0, heartGlow = 0;
+  if (isExcited && !state.sleeping) {
+    state.heartPhase = (state.heartPhase || 0) + delta * (excitedChasing ? 7.5 : 5);
+    const lub = Math.pow(Math.max(0, Math.sin(state.heartPhase)), 6);
+    const dub = Math.pow(Math.max(0, Math.sin(state.heartPhase - 0.55)), 6) * 0.55;
+    heartPulse = Math.min(1, lub + dub);
+    heartGlow = heartPulse * 0.28;
+  }
+  state.glowBoost = morphGlow + heartGlow;
+
+  // ── Rainbow do Zen: a respiração tinge as faces de arco-íris, cada vez
+  // mais forte conforme a zen_aura se aproxima (zenPose.rainbow) ──
+  state.rainbowMix = damp(
+    state.rainbowMix || 0,
+    zenPose && zenPose.rainbow ? zenPose.rainbow : 0,
+    1.5,
+    delta
+  );
+
+  // ── Zen: anéis orbitais (halo) — só existem nessa personalidade; ligam/
+  // desligam suave conforme entra/sai do Zen, e a respiração/eventos
+  // especiais (zenPose) controlam pulso e tint (ver scene.js → updateRings)
+  if (updateRings) {
+    updateRings(delta, {
+      active: state.mode === 'zen',
+      breath: zenPose && zenPose.ringBreath !== undefined ? zenPose.ringBreath : 0,
+      tint: zenPose ? zenPose.ringTint || null : null,
+      tintMix: zenPose && zenPose.ringTintMix ? zenPose.ringTintMix : 0,
+    });
+  }
+
+  // ── Cenário de humor: lótus desabrochando atrás do Zen, coração pulsando
+  // atrás do Excited (murcha nas fases de vergonha) — scene.js → updateBackdrop
+  if (updateBackdrop) {
+    updateBackdrop(delta, {
+      lotus: state.mode === 'zen' ? 1 : 0,
+      lotusBreath: zenPose && zenPose.ringBreath !== undefined ? zenPose.ringBreath : 0,
+      tint: zenPose ? zenPose.ringTint || null : null,
+      tintMix: zenPose && zenPose.ringTintMix ? zenPose.ringTintMix : 0,
+      heart: isExcited && excitedPhase && !excitedPhase.startsWith('shy') ? 1 : 0,
+      heartPulse,
+    });
   }
 
   // ── Carinho: bookkeeping do medidor (afeta o "encolher" visual em
@@ -119,6 +206,12 @@ export function updateAlive(state, refs, deps, now, delta, t) {
       vibeZ = Math.sin((now - state.vibeStart) / 9) * 0.07 * env;
       vibeY = Math.sin((now - state.vibeStart) / 7) * 0.045 * env;
     }
+    // Rebolado contínuo do estado livre: onda lenta e sensual atravessando o
+    // corpo (Z e Y defasados) — ele dança sozinho, se insinuando
+    if (excitedFree) {
+      vibeZ += Math.sin(t * 1.7) * 0.055;
+      vibeY += Math.sin(t * 3.4 + 1.2) * 0.05;
+    }
   }
 
   // ── Rotação base (velocidade vagando por ruído — nunca metrônomo) ──
@@ -126,7 +219,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   const spinRate = state.sleeping
     ? 0.02
     : 0.28 * personality.movement.spin * (0.5 + n01(noiseMod(t * 0.07, 10))) *
-      sigSpinMul * (1 - state.petLean * 0.45);
+      sigSpinMul * morphSpinMul * (1 - state.petLean * 0.45);
   state.spin += delta * spinRate;
   state.spin += state.pokeVel * delta;
   state.pokeVel *= Math.exp(-2.2 * delta);
@@ -254,20 +347,22 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   // ── Tiques de impaciência ──
   // (o "arrepio" por unfold foi removido: brigava com a pilha de unfold da
   // respiração/espreguiçada e lia mal — ficaram pulinho e giro seco)
-  let tickY = 0, tickYaw = 0;
+  let tickY = 0, tickYaw = 0, tickScale = 0;
   if (state.tick) {
     const p = (now - state.tick.start) / 800;
     if (p >= 1) {
       state.tick = null;
     } else if (state.tick.type === 0) {
       tickY = pulse(p) * 0.28;                       // pulinho
+      // estica-e-amassa: alonga na subida, achata no pouso
+      tickScale = p < 0.5 ? pulse(p * 2) * 0.045 : -pulse((p - 0.5) * 2) * 0.05;
     } else {
       tickYaw = Math.sin(p * Math.PI * 2) * 0.503;    // giro seco vai-e-volta
     }
   }
 
   // ── Espreguiçada ──
-  let stretchUnfold = 0, stretchScale = 0;
+  let stretchUnfold = 0, stretchScale = 0, stretchPitch = 0;
   if (state.stretch) {
     const p = (now - state.stretch.start) / 4200;
     if (p >= 1) {
@@ -276,6 +371,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
       const env = stretchEnv(p);
       stretchUnfold = env * 0.5;
       stretchScale = env * 0.05;
+      stretchPitch = -env * 0.14; // "bocejo": estica olhando pro alto
     }
   }
 
@@ -295,10 +391,13 @@ export function updateAlive(state, refs, deps, now, delta, t) {
   state.wakeJolt = damp(state.wakeJolt, 0, 2.4, delta);
 
   // ── Desdobramento das facetas ("respiração", ritmo e fundo vagando) ──
+  // No Zen o núcleo fica quase fechado (a respiração migrou pro halo de
+  // anéis acima — ringBreath) — só um fiapo de shimmer sobra nas facetas.
   state.breathePhase += delta * (0.6 + 0.3 * n01(noiseMod(t * 0.09, 40)));
+  const zenCalm = state.mode === 'zen' ? 0.2 : 1;
   const breathe = state.sleeping
     ? 0.015
-    : 0.05 + Math.sin(state.breathePhase) * (0.018 + 0.02 * n01(noiseMod(t * 0.05, 45)));
+    : (0.05 + Math.sin(state.breathePhase) * (0.018 + 0.02 * n01(noiseMod(t * 0.05, 45)))) * zenCalm;
   const unfoldTarget = clamp(
     breathe + stretchUnfold + state.wakeJolt + sigUnfold + state.petLean * 0.12,
     0,
@@ -319,8 +418,8 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     updateReleaseFall(state, gem, delta, now, logEvent);
   } else if (!state.sleeping) {
     updateRestPosition(state, camera, now, delta, t, logEvent);
-    gem.position.x = state.restX;
-    gem.position.y = state.restY + bob + tickY + sigY + hopY + vibeY;
+    gem.position.x = state.restX + sigX;
+    gem.position.y = state.restY + bob + tickY + sigY + hopY + vibeY + morphY;
   } else {
     updateSleepPosition(state, delta);
     gem.position.x = state.restX;
@@ -334,7 +433,7 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     ? 0.92 // levemente encolhido ao ser segurado
     : state.sleeping
     ? 1 + Math.sin(t * 1.3) * 0.012
-    : 1 + stretchScale + takeoffJuice - landJuice + sigScale + state.petLean * 0.025;
+    : 1 + stretchScale + takeoffJuice - landJuice + sigScale + tickScale + morphScale + state.petLean * 0.025;
   state.scaleCur = damp(state.scaleCur, scaleTarget, 2.2, delta);
   gem.scale.setScalar(state.scaleCur);
 
@@ -361,9 +460,16 @@ export function updateAlive(state, refs, deps, now, delta, t) {
     2,
     delta
   );
-  mesh.rotation.y = state.spin + state.lookYaw + tickYaw;
-  mesh.rotation.x = state.tiltX + state.lookPitch - pitchVel;
-  mesh.rotation.z = state.tiltZ + dizzyZ + bankZ + sigZ + vibeZ;
+  mesh.rotation.y = state.spin + state.lookYaw + tickYaw + sigYaw;
+  mesh.rotation.x = state.tiltX + state.lookPitch - pitchVel + sigPitch + stretchPitch;
+  mesh.rotation.z = state.tiltZ + dizzyZ + bankZ + sigZ + vibeZ + morphZ;
+
+  // ── Rastro de facetas: viajando em modo Zen, "pétalas" (facetas) se
+  // soltam do corpo e caem se desfazendo pelo caminho ──
+  if (emitTrailFacet && state.mode === 'zen' && state.reloc && now >= (state.nextTrailAt || 0)) {
+    state.nextTrailAt = now + 50 + Math.random() * 70;
+    emitTrailFacet(gem.position.x, gem.position.y);
+  }
 
   // ── zzz ──
   if (state.sleeping) {

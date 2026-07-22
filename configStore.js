@@ -48,6 +48,7 @@ const DEFAULTS = {
 
   // Aba Sistema — aplicados na criação da janela (exigem reiniciar)
   sistema: {
+    ativo: true, // liga/desliga o Icosaendro na tela; aplicado ao vivo (main.js)
     targetBrowser: 'brave', // navegador que o Ico_Eye observa
     windowHeight: 480, // altura da "pista" acima da taskbar
   },

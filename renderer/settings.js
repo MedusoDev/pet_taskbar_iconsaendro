@@ -7,24 +7,24 @@
 import { normality } from './personalities/normality.js';
 import { zen } from './personalities/zen.js';
 import { excited } from './personalities/excited.js';
+import { createPreviewGem, CLIPS, MODES } from './previewGem.js';
 
 const PERSONALITIES = [normality, zen, excited];
 const P_LABEL = { normality: 'Normality', zen: 'Zen', excited: 'Excited' };
 
 // Schema das abas com campos numéricos/texto/checkbox simples. Personalidade e
 // Falas têm render próprio (custom).
+// Campos numéricos que ficam por baixo do preview na aba Animações.
+const ANIM_TIMING_FIELDS = [
+  { path: 'animacoes.excitedSignatureMinSec', label: 'Shimmy do Excited — intervalo mínimo', sub: 'segundos', type: 'number', min: 1, step: 1 },
+  { path: 'animacoes.excitedSignatureMaxSec', label: 'Shimmy do Excited — intervalo máximo', sub: 'segundos', type: 'number', min: 1, step: 1 },
+  { path: 'animacoes.idleSignatureMinSec', label: 'Outras assinaturas — intervalo mínimo', sub: 'segundos', type: 'number', min: 1, step: 1 },
+  { path: 'animacoes.idleSignatureMaxSec', label: 'Outras assinaturas — intervalo máximo', sub: 'segundos', type: 'number', min: 1, step: 1 },
+];
+
 const TABS = [
   { id: 'personalidade', title: 'Personalidade', custom: renderPersonalidade },
-  {
-    id: 'animacoes', title: 'Animações',
-    hint: 'Com que frequência as animações de assinatura (shimmy etc.) se repetem.',
-    fields: [
-      { path: 'animacoes.excitedSignatureMinSec', label: 'Shimmy do Excited — intervalo mínimo', sub: 'segundos', type: 'number', min: 1, step: 1 },
-      { path: 'animacoes.excitedSignatureMaxSec', label: 'Shimmy do Excited — intervalo máximo', sub: 'segundos', type: 'number', min: 1, step: 1 },
-      { path: 'animacoes.idleSignatureMinSec', label: 'Outras assinaturas — intervalo mínimo', sub: 'segundos', type: 'number', min: 1, step: 1 },
-      { path: 'animacoes.idleSignatureMaxSec', label: 'Outras assinaturas — intervalo máximo', sub: 'segundos', type: 'number', min: 1, step: 1 },
-    ],
-  },
+  { id: 'animacoes', title: 'Animações', custom: renderAnimacoes },
   {
     id: 'ritmo', title: 'Ritmo e Tempos',
     hint: 'Limiares das transições de humor (Zen, sono e o "cansaço" do Excited).',
@@ -49,6 +49,7 @@ const TABS = [
     id: 'sistema', title: 'Sistema',
     hint: 'Itens de Sistema só valem depois de reiniciar o app.',
     fields: [
+      { path: 'sistema.ativo', label: 'Ativar o Icosaendro', sub: 'desmarque pra esconder o pet — o app continua rodando em segundo plano', type: 'checkbox' },
       { path: 'openSettingsOnStart', label: 'Abrir Configurações ao iniciar', type: 'checkbox' },
       { path: 'sistema.targetBrowser', label: 'Navegador observado (Ico_Eye)', sub: 'nome do processo, ex: brave', type: 'text', restart: true },
       { path: 'sistema.windowHeight', label: 'Altura da pista', sub: 'px acima da taskbar', type: 'number', min: 160, step: 20, restart: true },
@@ -110,6 +111,76 @@ function renderPersonalidade(pane) {
     );
     pane.append(card);
   }
+}
+
+let previewGemCtl = null;
+
+function renderAnimacoes(pane) {
+  pane.insertAdjacentHTML('beforeend',
+    '<h2>Animações</h2><p class="hint">Um clone do Icozinho pra testar: escolha o modo (como ele fica) e clique numa animação da lista pra ver como ela fica.</p>');
+
+  const row = document.createElement('div');
+  row.className = 'anim-preview-row';
+
+  const canvasWrap = document.createElement('div');
+  canvasWrap.className = 'anim-canvas-wrap';
+  const canvas = document.createElement('canvas');
+  canvas.id = 'anim-preview-canvas';
+  canvasWrap.append(canvas);
+
+  const modeRow = document.createElement('div');
+  modeRow.className = 'mode-row';
+  MODES.forEach((m, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mode-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = m.label;
+    btn.style.setProperty('--mode-color', m.palette[0]);
+    btn.addEventListener('click', () => {
+      if (!previewGemCtl) return;
+      previewGemCtl.setMode(m.id);
+      document.querySelectorAll('.mode-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+    modeRow.append(btn);
+  });
+  canvasWrap.append(modeRow);
+
+  const list = document.createElement('div');
+  list.className = 'anim-list';
+  const groups = [...new Set(CLIPS.map((c) => c.group))];
+  for (const g of groups) {
+    const h = document.createElement('div');
+    h.className = 'anim-group-title';
+    h.textContent = g;
+    list.append(h);
+    for (const clipDef of CLIPS.filter((c) => c.group === g)) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'anim-btn';
+      btn.textContent = clipDef.label;
+      btn.addEventListener('click', () => {
+        if (!previewGemCtl) return;
+        previewGemCtl.play(clipDef.id);
+        document.querySelectorAll('.anim-btn.playing').forEach((b) => b.classList.remove('playing'));
+        btn.classList.add('playing');
+        setTimeout(() => btn.classList.remove('playing'), clipDef.durationMs);
+      });
+      list.append(btn);
+    }
+  }
+
+  row.append(canvasWrap, list);
+  pane.append(row);
+
+  previewGemCtl = createPreviewGem(canvas);
+
+  const timingCard = document.createElement('div');
+  timingCard.className = 'card';
+  timingCard.insertAdjacentHTML('beforeend',
+    '<h3>Frequência das assinaturas</h3><p class="hint">Com que frequência as animações de assinatura (shimmy etc.) se repetem no pet de verdade.</p>');
+  ANIM_TIMING_FIELDS.forEach((f) => timingCard.append(buildField(f)));
+  pane.append(timingCard);
 }
 
 function renderFalas(pane) {
@@ -228,7 +299,17 @@ function buildTabs() {
 function selectTab(id) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === id));
   document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('active', p.id === `pane-${id}`));
+  if (previewGemCtl) previewGemCtl.setActive(id === 'animacoes' && !document.hidden);
 }
+
+// A janela de Configurações agora só se esconde ao fechar (ver settingsWindow.js)
+// em vez de ser destruída — sem isso o preview 3D ficaria renderizando pra
+// sempre em segundo plano.
+document.addEventListener('visibilitychange', () => {
+  if (!previewGemCtl) return;
+  const onAnimTab = document.getElementById('pane-animacoes')?.classList.contains('active');
+  previewGemCtl.setActive(!!onAnimTab && !document.hidden);
+});
 
 async function save() {
   // Coleta todos os campos com data-path direto no config (working copy)

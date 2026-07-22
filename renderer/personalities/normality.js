@@ -1,7 +1,9 @@
 // Personalidade: Normality (base)
-// Comportamento padrão do pet — sem assinatura própria, sem tom extra.
-// É o estado de repouso da máquina de personalidades (ver
-// behaviors/personalityState.js): sempre volta pra cá depois de Zen/Excited.
+// Comportamento padrão do pet. É o estado de repouso da máquina de
+// personalidades (ver behaviors/personalityState.js): sempre volta pra cá
+// depois de Zen/Excited.
+
+const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
 export const normality = {
   id: 'normality',
@@ -17,9 +19,54 @@ export const normality = {
   msgSpeed: 1.0,
   travelSpeed: 1.0,
 
-  // Sem assinatura: Normality não tem nenhuma animação exclusiva além das
-  // já contínuas (breathe/tilt/etc) e das reativas a input.
-  signature: null,
+  // Flourish (floreio de moeda) — a assinatura do Normality: de vez em
+  // quando ele se exibe com um truque de gamer. Agacha carregando o pulo,
+  // salta dando uma pirueta completa em Y com as facetas flarando no ápice
+  // (moeda jogada pro alto), e pousa com overshoot num "tcharam" que
+  // assenta. Tocado pelo relógio de assinatura (idleSignatureMin/MaxSec).
+  signature: {
+    type: 'flourish',
+    label: 'flourish (floreio de moeda)',
+    duration: 2.9,
+    apply(p) {
+      if (p < 0.3) {
+        // 1) carga: agacha, amassa e fecha, mirando o pulo
+        const k = smooth(p / 0.3);
+        return {
+          z: 0,
+          y: -0.16 * k,
+          scale: -0.06 * k,
+          unfold: 0,
+          spinMul: 1 - 0.7 * k,
+          pitch: 0.14 * k,
+        };
+      }
+      if (p < 0.66) {
+        // 2) voo: pulo em arco + pirueta completa em Y, facetas no ápice
+        const k = (p - 0.3) / 0.36;
+        const arc = Math.sin(k * Math.PI);
+        return {
+          z: Math.sin(k * Math.PI * 2) * 0.06,
+          y: -0.16 * (1 - k) + arc * 0.85,
+          scale: -0.06 * (1 - k) + arc * 0.12,
+          unfold: arc * 0.4,
+          spinMul: 0.3,
+          yaw: smooth(k) * Math.PI * 2, // 2π ≡ 0: pousa no ângulo em que saiu
+          pitch: 0.14 * (1 - k),
+        };
+      }
+      // 3) pouso: quica com overshoot e um pop de facetas que assenta
+      const k = (p - 0.66) / 0.34;
+      const bounce = Math.sin(k * Math.PI * 2) * Math.exp(-k * 3.5);
+      return {
+        z: 0,
+        y: bounce * 0.12,
+        scale: bounce * 0.08,
+        unfold: Math.exp(-k * 3) * 0.3,
+        spinMul: 1,
+      };
+    },
+  },
 
   lines: {
     poke: ['Oi?', 'Hm?', 'Cutucou.'],

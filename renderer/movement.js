@@ -22,8 +22,11 @@ const canvas = document.getElementById('pet-canvas');
 const zzzEl = document.getElementById('zzz');
 const siteIconEl = document.getElementById('site-icon');
 const speechEl = document.getElementById('speech');
-const { scene, camera, renderer, gem, mesh, applyUnfold, updateVisuals, setTint, setPalette } =
-  initScene(canvas);
+const {
+  scene, camera, renderer, gem, mesh,
+  applyUnfold, updateVisuals, updateRings, updateBackdrop, emitTrailFacet,
+  setTint, setPalette,
+} = initScene(canvas);
 
 // ─── Diário do pet: tudo que ele faz vai pro terminal via IPC ────────────────
 function logEvent(tag, detail = '') {
@@ -107,7 +110,7 @@ setupInteractions({ state, camera, gem, mesh, logEvent, speak, registerInput, pr
 const clock = new THREE.Clock();
 const affectionBar = createAffectionBar();
 const effects = createEffects();
-const refs = { camera, gem, mesh, applyUnfold, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects, prompt };
+const refs = { camera, gem, mesh, applyUnfold, updateRings, updateBackdrop, emitTrailFacet, setPalette, zzzEl, siteIconEl, speechEl, affectionBar, effects, prompt };
 const deps = { logEvent, speak, personalityCtl };
 let rafPaused = false;
 let rafId = 0;
@@ -134,13 +137,24 @@ function animate() {
   //    interrompível) suprime o relógio de tédio enquanto durar ──
   if (state.shutdown) {
     updateShutdown(state, refs, now, delta, logEvent);
+    // updateAlive não roda: halo/lótus/coração somem em fade e o brilho
+    // extra zera — senão ficariam congelados na tela o shutdown inteiro
+    updateRings(delta, { active: false });
+    updateBackdrop(delta, {});
+    state.glowBoost = 0;
+    state.rainbowMix = 0;
   } else {
     if (!state.zenAuraActive) updateBoredomClock(state, now, idleSec);
     updateAmbientSpeech(now);
     updateAlive(state, refs, deps, now, delta, t);
   }
 
-  updateVisuals(t, delta, { power: state.power, sleeping: state.sleeping });
+  updateVisuals(t, delta, {
+    power: state.power,
+    sleeping: state.sleeping,
+    rainbow: state.rainbowMix || 0,
+    glowBoost: state.glowBoost || 0,
+  });
   renderer.render(scene, camera);
 }
 

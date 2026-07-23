@@ -1,6 +1,0 @@
-{
-  "aiProvider": "ollama",
-  "ollamaModel": "llama3.2:3b",
-  "petName": "Ico",
-  "userName": "Meduso"
-}

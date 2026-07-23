@@ -21,20 +21,6 @@ carinho, e dorme quando você some.
 
 ---
 
-## 📸 Galeria
-
-> _Substitua os arquivos abaixo pelos seus GIFs/prints. Basta arrastar a imagem
-> pra dentro deste README no editor do GitHub (ele hospeda sozinho) ou colocar
-> os arquivos em `docs/` e ajustar os caminhos._
-
-| O pet na taskbar | Humores (Normality / Zen / Excited) |
-|---|---|
-| ![demo](docs/demo.gif) | ![humores](docs/humores.gif) |
-
-| Carinho e reações | Janela de Configurações |
-|---|---|
-| ![carinho](docs/carinho.gif) | ![config](docs/config.png) |
-
 ---
 
 ## ✨ Destaques

@@ -2,22 +2,47 @@
 // barra de tarefas) — separada do overlay transparente do pet. Carrega
 // renderer/settings.html e conversa com o main pelos canais config:get /
 // config:save (ver main.js e preload.js).
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 
 let settingsWin = null;
+let tray = null;
 
-// No "X" da janela, ela só MINIMIZA — o ícone continua na barra de tarefas
-// (minimizado) e o processo (e o pet) segue rodando. Só fecha de verdade
-// quando o app está de fato encerrando (before-quit), senão reabrir seria
-// sempre um reload do zero.
+// No "X" da janela, ela ESCONDE de vez — some da barra de tarefas e vai pro
+// system tray (bandeja ao lado do relógio). O processo (e o pet) segue rodando;
+// clicar no ícone da bandeja reabre. Só fecha de verdade quando o app está
+// encerrando (before-quit), senão reabrir seria sempre um reload do zero.
 let appQuitting = false;
 app.on('before-quit', () => {
   appQuitting = true;
 });
 
+// Ícone persistente na bandeja do sistema: garante que o app nunca "some" sem
+// deixar como reabri-lo depois que a janela de Configurações é fechada.
+function ensureTray() {
+  if (tray && !tray.isDestroyed()) return tray;
+
+  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'tray.png'));
+  tray = new Tray(icon);
+  tray.setToolTip('Icozinho');
+
+  const menu = Menu.buildFromTemplate([
+    { label: 'Abrir Configurações', click: () => createSettingsWindow() },
+    { type: 'separator' },
+    { label: 'Sair', click: () => { appQuitting = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(menu);
+
+  // Clique simples/duplo na bandeja também reabre as Configurações.
+  tray.on('click', () => createSettingsWindow());
+  tray.on('double-click', () => createSettingsWindow());
+  return tray;
+}
+
 function createSettingsWindow() {
-  // Já aberta → restaura da minimização e traz pra frente
+  ensureTray();
+
+  // Já aberta → restaura (se minimizada), mostra (se escondida) e traz pra frente
   if (settingsWin && !settingsWin.isDestroyed()) {
     if (settingsWin.isMinimized()) settingsWin.restore();
     settingsWin.show();
@@ -45,7 +70,7 @@ function createSettingsWindow() {
   settingsWin.on('close', (event) => {
     if (appQuitting) return;
     event.preventDefault();
-    settingsWin.minimize();
+    settingsWin.hide(); // some da barra de tarefas; segue vivo no system tray
   });
   settingsWin.on('closed', () => {
     settingsWin = null;

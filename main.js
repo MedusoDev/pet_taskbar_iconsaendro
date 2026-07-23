@@ -141,6 +141,18 @@ function createWindow() {
   applyIcosaendroVisibility();
 }
 
+// Aba Sistema → "Iniciar ao ligar o computador": registra/desregistra o app
+// como item de inicialização do Windows (login item). Idempotente — pode ser
+// chamada no startup e a cada save sem efeito colateral.
+function applyLoginItem() {
+  app.setLoginItemSettings({
+    openAtLogin: !!config.openOnStartup,
+    // Sobe minimizado (só o pet + a bandeja); a janela de Configurações abre
+    // por cima apenas se openSettingsOnStart também estiver ligado.
+    args: [],
+  });
+}
+
 // Aba Sistema → "Ativar o Icosaendro": esconde/mostra o overlay do pet sem
 // encerrar o app — ele continua rodando em segundo plano de qualquer jeito.
 function applyIcosaendroVisibility() {
@@ -179,6 +191,7 @@ ipcMain.handle('config:save', (event, patch) => {
   configStore.save(config);
   if (win && !win.isDestroyed()) win.webContents.send('config:changed', config);
   applyIcosaendroVisibility();
+  applyLoginItem();
   return config;
 });
 
@@ -187,6 +200,7 @@ ipcMain.on('settings:open', () => createSettingsWindow());
 
 app.whenReady().then(() => {
   config = configStore.load();
+  applyLoginItem(); // sincroniza o registro de inicialização com o que está salvo
   createWindow();
   // "A primeira coisa que abre é a janela de Configurações": abre por cima do
   // pet no startup (desligável na aba Sistema).

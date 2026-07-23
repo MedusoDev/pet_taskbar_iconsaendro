@@ -14,6 +14,7 @@ const path = require('path');
 const DEFAULTS = {
   // Sistema
   openSettingsOnStart: true,
+  openOnStartup: false, // iniciar o Icozinho junto com o Windows (login item)
 
   // Aba Personalidade — por personalidade
   personalidade: {

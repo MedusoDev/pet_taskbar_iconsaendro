@@ -1,18 +1,90 @@
-# pet_taskbar_icosaendro
+<div align="center">
 
-Um "bichinho de estimação" 3D — um icosaedro procedural, sem sprites nem
-texturas — que vive flutuando sobre a taskbar do Windows, atravessa todos os
-monitores conectados, reage ao mouse e ao navegador ativo, e tem personalidade
-própria: humor que muda com o jeito que você trata ele.
+<img src="assets/icon.png" width="120" alt="Icozinho" />
 
-Feito em **Electron** (processo principal em Node) + **Three.js puro** no
-renderer (sem framework de UI — DOM/CSS manual para os balões e barrinhas).
+# Icozinho
 
-> Esta documentação cobre a branch `versionamento` (o estado atual do
-> repositório). O projeto também tem uma branch `master`, mais adiantada, que
-> acrescenta um sistema de IA (Groq/Ollama), lorebook, memória/vínculo
-> persistente, monitor de sistema e uma janela de Configurações inteira — não
-> documentado aqui porque ainda não é o que está de fato em uso nesta branch.
+**Um bichinho de estimação 3D que vive na sua taskbar do Windows.**
+
+Um icosaedro procedural — sem sprites nem texturas — que flutua sobre a barra de
+tarefas, atravessa todos os monitores, reage ao mouse e ao navegador ativo, e
+tem humor próprio: fica Zen quando você o deixa quieto, Excited quando você faz
+carinho, e dorme quando você some.
+
+![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?logo=windows&logoColor=white)
+![Electron](https://img.shields.io/badge/Electron-43-47848F?logo=electron&logoColor=white)
+![Three.js](https://img.shields.io/badge/Three.js-r169-000000?logo=three.js&logoColor=white)
+
+### [⬇ Baixar a última versão](../../releases/latest)
+
+</div>
+
+---
+
+## 📸 Galeria
+
+> _Substitua os arquivos abaixo pelos seus GIFs/prints. Basta arrastar a imagem
+> pra dentro deste README no editor do GitHub (ele hospeda sozinho) ou colocar
+> os arquivos em `docs/` e ajustar os caminhos._
+
+| O pet na taskbar | Humores (Normality / Zen / Excited) |
+|---|---|
+| ![demo](docs/demo.gif) | ![humores](docs/humores.gif) |
+
+| Carinho e reações | Janela de Configurações |
+|---|---|
+| ![carinho](docs/carinho.gif) | ![config](docs/config.png) |
+
+---
+
+## ✨ Destaques
+
+- **Vive sobre a taskbar** — janela transparente, sem moldura, sempre no topo,
+  que cobre todos os monitores conectados (o pet passeia de uma tela pra outra).
+- **Personalidade emergente** — três humores (Normality, Zen, Excited) numa
+  máquina de estados guiada pelo *seu* comportamento, não por sorteio.
+- **Reage a você** — cutucão, cafuné, susto, colo (drag), estacionar; e ao
+  navegador ativo (Ico_Eye muda de cor conforme o site).
+- **100% procedural** — o corpo é um icosaedro gerado em código (Three.js puro),
+  com facetas que mudam de cor continuamente. Nenhuma imagem de sprite.
+- **System tray** — fecha a janela de Configurações e ele continua vivo na
+  bandeja; opção de iniciar junto com o Windows.
+
+---
+
+## 🚀 Instalação (usuário final)
+
+1. Vá em **[Releases](../../releases/latest)** e baixe o `Icozinho Setup x.x.x.exe`.
+2. Execute o instalador (o Windows pode mostrar um aviso do SmartScreen por ser
+   um app sem assinatura paga — clique em *Mais informações → Executar assim mesmo*).
+3. Pronto: o Icozinho aparece na taskbar e um ícone fica na bandeja do sistema.
+
+---
+
+## 🛠️ Rodar / buildar (desenvolvedor)
+
+```bash
+npm install
+npm start          # roda em modo dev (electron .)
+npm run dist       # gera o instalador Windows em dist/ (electron-builder)
+```
+
+`npm start` executa `electron .`, carregando `main.js` como processo principal.
+Não há passo de build para o renderer — é ES modules puro, carregado direto pelo
+Chromium do Electron.
+
+`npm run dist` empacota tudo num instalador NSIS (`dist/Icozinho Setup x.x.x.exe`)
+usando o **electron-builder** (config no `package.json → build`). O ícone do app
+fica em [`assets/icon.ico`](assets/icon.ico).
+
+Dependências de runtime: `active-win` (detecta a janela ativa do Windows) e
+`three` (motor 3D). O `active-win` traz binários N-API pré-compilados, então o
+build não precisa de Python/node-gyp (`npmRebuild: false`).
+
+---
+
+> O restante deste documento é a **documentação técnica** da arquitetura, para
+> quem quiser entender como o pet foi construído por dentro.
 
 ---
 
@@ -41,17 +113,19 @@ renderer (sem framework de UI — DOM/CSS manual para os balões e barrinhas).
 
 ```bash
 npm install
-npm start
+npm start          # modo dev
+npm run dist       # gera o instalador Windows em dist/
 ```
 
 `npm start` executa `electron .`, que carrega `main.js` como processo
-principal. Não há passo de build — o renderer é ES modules puro, carregado
+principal. Não há passo de build para o renderer — é ES modules puro, carregado
 direto pelo Chromium do Electron (`<script type="module">` em
 `renderer/index.html`).
 
-Dependências de runtime: `electron` (dev), `active-win` (detecta a janela
-ativa do Windows) e `three` (motor 3D). Sem `electron-builder` configurado
-nesta branch — o app roda só em modo dev, não gera `.exe`.
+Dependências de runtime: `active-win` (detecta a janela ativa do Windows) e
+`three` (motor 3D); `electron` e `electron-builder` são de desenvolvimento. O
+empacotamento em `.exe` é feito pelo **electron-builder** (ver a seção de build
+no topo deste README).
 
 ---
 
@@ -64,7 +138,7 @@ pet_taskbar_icosaendro/
 ├── package.json / package-lock.json
 ├── ANIMATIONS.md             # catálogo de referência de toda animação/comportamento
 ├── README.md                 # este arquivo
-├── assets/                   # pasta de ícones do app (vazia nesta branch, só .gitkeep)
+├── assets/                   # ícones do app (icon.ico/icon.png) e da bandeja (tray.png)
 ├── elec_out.log / elec_err.log  # saída de execução do Electron (não deveriam estar versionados)
 ├── IcosaGem.tsx               # componente React legado — NÃO faz parte do app (ver seção 15)
 ├── Icosaendro3D.tsx           # idem

@@ -1,1 +1,5 @@
 node_modules/
+dist/
+elec_out.log
+elec_err.log
+*.bak

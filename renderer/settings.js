@@ -50,6 +50,7 @@ const TABS = [
     hint: 'Itens de Sistema só valem depois de reiniciar o app.',
     fields: [
       { path: 'sistema.ativo', label: 'Ativar o Icosaendro', sub: 'desmarque pra esconder o pet — o app continua rodando em segundo plano', type: 'checkbox' },
+      { path: 'openOnStartup', label: 'Iniciar ao ligar o computador', sub: 'abre o Icozinho junto com o Windows', type: 'checkbox' },
       { path: 'openSettingsOnStart', label: 'Abrir Configurações ao iniciar', type: 'checkbox' },
       { path: 'sistema.targetBrowser', label: 'Navegador observado (Ico_Eye)', sub: 'nome do processo, ex: brave', type: 'text', restart: true },
       { path: 'sistema.windowHeight', label: 'Altura da pista', sub: 'px acima da taskbar', type: 'number', min: 160, step: 20, restart: true },

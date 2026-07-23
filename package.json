@@ -1,17 +1,61 @@
 {
   "name": "pet-taskbar-icosaendro",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Pet de desktop 3D (icosaedro) que anda sobre a taskbar do Windows",
   "main": "main.js",
   "private": true,
+  "author": "MedusoDev",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --dir"
   },
   "devDependencies": {
-    "electron": "^43.1.1"
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
     "active-win": "^8.2.1",
     "three": "^0.169.0"
+  },
+  "build": {
+    "appId": "com.medusodev.icozinho",
+    "productName": "Icozinho",
+    "copyright": "Copyright © 2026 MedusoDev",
+    "npmRebuild": false,
+    "files": [
+      "main.js",
+      "preload.js",
+      "configStore.js",
+      "settingsWindow.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "!**/*.tsx",
+      "!**/*.bak",
+      "!elec_*.log",
+      "!**/*.md"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": "x64"
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Icozinho",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
+    }
   }
 }
